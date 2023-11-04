@@ -78,6 +78,9 @@ namespace UnityEngine.Rendering.HighDefinition
         internal const float TAABaseBlendFactorMax = 0.95f;
         float[] taaSampleWeights = new float[9];
 
+        // current exposure of main camera
+        float mainCurrentExposure = 0f;
+
         private enum ResolutionGroup
         {
             BeforeDynamicResUpscale,
@@ -384,6 +387,14 @@ namespace UnityEngine.Rendering.HighDefinition
                     using (new ProfilingScope(cmd, ProfilingSampler.Get(HDProfileId.FixedExposure)))
                     {
                         DoFixedExposure(camera, cmd);
+                    }
+                }
+
+                if (camera.camera.depth >= 10)
+                {
+                    using (new ProfilingScope(cmd, ProfilingSampler.Get(HDProfileId.FixedExposure)))
+                    {
+                        DoSlaveExposure(camera, cmd);
                     }
                 }
 
@@ -1004,6 +1015,28 @@ namespace UnityEngine.Rendering.HighDefinition
             cmd.DispatchCompute(cs, kernel, 1, 1, 1);
         }
 
+        void DoSlaveExposure(HDCamera hdCamera, CommandBuffer cmd)
+        {
+            ComputeShader cs = defaultResources.shaders.exposureCS;
+            int kernel = 0;
+            Vector4 exposureParams;
+            Vector4 exposureParams2 = new Vector4(0.0f, 0.0f, ColorUtils.lensImperfectionExposureScale, ColorUtils.s_LightMeterCalibrationConstant);
+            kernel = cs.FindKernel("KFixedExposure");
+            exposureParams = new Vector4(m_DebugExposureCompensation, mainCurrentExposure, 0f, 0f);
+#if UNITY_EDITOR
+            if (HDAdditionalSceneViewSettings.sceneExposureOverriden && hdCamera.camera.cameraType == CameraType.SceneView)
+            {
+                exposureParams = new Vector4(0.0f, HDAdditionalSceneViewSettings.sceneExposure, 0f, 0f);
+            }
+#endif
+
+            cmd.SetComputeVectorParam(cs, HDShaderIDs._ExposureParams, exposureParams);
+            cmd.SetComputeVectorParam(cs, HDShaderIDs._ExposureParams2, exposureParams2);
+
+            cmd.SetComputeTextureParam(cs, kernel, HDShaderIDs._OutputTexture, hdCamera.currentExposureTextures.current);
+            cmd.DispatchCompute(cs, kernel, 1, 1, 1);
+        }
+
         void PrepareExposureCurveData(out float min, out float max)
         {
             var curve = m_Exposure.curveMap.value;
@@ -1311,7 +1344,7 @@ namespace UnityEngine.Rendering.HighDefinition
             // Not considered as a post-process so it's not affected by its enabled state
 
             TextureHandle exposureForImmediateApplication = TextureHandle.nullHandle;
-            if (!IsExposureFixed(hdCamera) && hdCamera.exposureControlFS)
+            if (!IsExposureFixed(hdCamera) && hdCamera.exposureControlFS && hdCamera.camera.depth < 10)
             {
                 using (var builder = renderGraph.AddRenderPass<DynamicExposureData>("Dynamic Exposure", out var passData, ProfilingSampler.Get(HDProfileId.DynamicExposure)))
                 {
@@ -1341,6 +1374,11 @@ namespace UnityEngine.Rendering.HighDefinition
                             });
                         exposureForImmediateApplication = passData.nextExposure;
                     }
+
+                    // Trigger readback of the exposure value from the GPU
+                    hdCamera.RequestGpuExposureValue(GetExposureTexture(hdCamera));
+                    hdCamera.GpuExposureValue();
+                    mainCurrentExposure = hdCamera.ExposureValue();
                 }
 
                 if (hdCamera.resetPostProcessingHistory)
