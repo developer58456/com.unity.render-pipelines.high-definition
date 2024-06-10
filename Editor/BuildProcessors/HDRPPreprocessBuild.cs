@@ -1,69 +1,169 @@
-using UnityEngine;
+using System;
+using System.Collections.Generic;
+using System.Text;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
+using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.HighDefinition;
 
+using ShaderPrefilteringData = UnityEngine.Rendering.HighDefinition.HDRenderPipelineAsset.ShaderPrefilteringData;
+
 namespace UnityEditor.Rendering.HighDefinition
 {
-    class HDRPPreprocessBuild : IPreprocessBuildWithReport
+    // Shader features that can be used to configure shader prefiltering.
+    // Prefiltering can apply complex rules that cannot be properly defined during scriptable stripping.
+    [Flags]
+    enum ShaderFeatures : long
     {
-        public int callbackOrder { get { return 0; } }
+        None = 0,
+        UseLegacyLightmaps = (1L << 0),
+    }
 
-        int GetMinimumMaxLoDValue(HDRenderPipelineAsset asset)
-        {
-            int minimumMaxLoD = int.MaxValue;
-            var maxLoDs = asset.currentPlatformRenderPipelineSettings.maximumLODLevel;
-            var schema = ScalableSettingSchema.GetSchemaOrNull(maxLoDs.schemaId);
-            for (int lod = 0; lod < schema.levelCount; ++lod)
-            {
-                if (maxLoDs.TryGet(lod, out int maxLoD))
-                    minimumMaxLoD = Mathf.Min(minimumMaxLoD, maxLoD);
-            }
+    class HDRPPreprocessBuild : IPreprocessBuildWithReport, IPostprocessBuildWithReport
+    {
+        public int callbackOrder => 0;
 
-            if (minimumMaxLoD != int.MaxValue)
-                return minimumMaxLoD;
-            else
-                return 0;
-        }
+        private static HDRPBuildData m_BuildData = null;
+        private static List<ShaderFeatures> s_SupportedFeaturesList = new();
 
         public void OnPreprocessBuild(BuildReport report)
         {
-            // Don't execute the preprocess if we are not HDRenderPipeline
-            HDRenderPipelineAsset hdPipelineAsset = GraphicsSettings.renderPipelineAsset as HDRenderPipelineAsset;
-            if (hdPipelineAsset == null)
-                return;
-            else if (!(hdPipelineAsset as IMigratableAsset).IsAtLastVersion())
-                throw new BuildFailedException($"GraphicSetting's HDRenderPipelineAsset {AssetDatabase.GetAssetPath(hdPipelineAsset)} is a non updated asset. Please use HDRP wizard to fix it.");
+            m_BuildData?.Dispose();
+            bool isDevelopmentBuild = (report.summary.options & BuildOptions.Development) != 0;
+            m_BuildData = new HDRPBuildData(EditorUserBuildSettings.activeBuildTarget, isDevelopmentBuild);
 
-            // If platform is not supported, throw an exception to stop the build
-            if (!HDUtils.IsSupportedBuildTargetAndDevice(report.summary.platform, out GraphicsDeviceType deviceType))
-                throw new BuildFailedException(HDUtils.GetUnsupportedAPIMessage(deviceType.ToString()));
+            if (m_BuildData.buildingPlayerForHDRenderPipeline)
+            {
+                // Now that we know that we are on HDRP we need to make sure everything is correct, otherwise we break the build.
+                if (!HDRPBuildDataValidator.IsProjectValidForBuilding(report, out var message))
+                    throw new BuildFailedException(message);
 
-            //ensure global settings exist and at last version
-            if (HDRenderPipelineGlobalSettings.instance == null)
-                throw new BuildFailedException("There is currently no HDRenderPipelineGlobalSettings in use. Please use HDRP wizard to fix it.");
-            if (!(HDRenderPipelineGlobalSettings.instance as IMigratableAsset).IsAtLastVersion())
-                throw new BuildFailedException($"Current HDRenderPipelineGlobalSettings {AssetDatabase.GetAssetPath(HDRenderPipelineGlobalSettings.instance)} is a non updated asset. Please use HDRP wizard to fix it.");
+                ConfigureMinimumMaxLoDValueForAllQualitySettings();
+
+                LogIncludedAssets(m_BuildData.renderPipelineAssets);
+
+                GatherShaderFeatures();
+            }
+        }
+
+        internal static void LogIncludedAssets(List<HDRenderPipelineAsset> assetsList)
+        {
+            using (GenericPool<StringBuilder>.Get(out var assetsIncluded))
+            {
+                assetsIncluded.Clear();
+
+                assetsIncluded.Append($"{assetsList.Count} HDRP assets included in build");
+
+                foreach (var hdrpAsset in assetsList)
+                {
+                    assetsIncluded.AppendLine($"- {hdrpAsset.name} - {AssetDatabase.GetAssetPath(hdrpAsset)}");
+                }
+
+                Debug.Log(assetsIncluded);
+            }
+        }
+
+        internal static void ConfigureMinimumMaxLoDValueForAllQualitySettings()
+        {
+            int GetMinimumMaxLoDValue(HDRenderPipelineAsset asset)
+            {
+                int minimumMaxLoD = int.MaxValue;
+
+                if (asset != null)
+                {
+                    var maxLoDs = asset.currentPlatformRenderPipelineSettings.maximumLODLevel;
+                    var schema = ScalableSettingSchema.GetSchemaOrNull(maxLoDs.schemaId);
+                    for (int lod = 0; lod < schema.levelCount; ++lod)
+                    {
+                        if (maxLoDs.TryGet(lod, out int maxLoD))
+                            minimumMaxLoD = Mathf.Min(minimumMaxLoD, maxLoD);
+                    }
+                }
+
+                return minimumMaxLoD != int.MaxValue ? minimumMaxLoD : 0;
+            }
+
+            var defaultRenderPipeline = GraphicsSettings.defaultRenderPipeline as HDRenderPipelineAsset;
 
             // Update all quality levels with the right max lod so that meshes can be stripped.
             // We don't take lod bias into account because it can be overridden per camera.
             QualitySettings.ForEach((tier, name) =>
             {
-                if (!((QualitySettings.renderPipeline as IMigratableAsset)?.IsAtLastVersion() ?? true))
-                    throw new BuildFailedException(
-                        $"Quality {tier} - {name} use a non updated asset {AssetDatabase.GetAssetPath(QualitySettings.renderPipeline)}. Please use HDRP wizard to fix it.");
+                if (QualitySettings.renderPipeline is not HDRenderPipelineAsset renderPipeline)
+                    renderPipeline = defaultRenderPipeline;
 
-                var renderPipeline = QualitySettings.renderPipeline as HDRenderPipelineAsset;
-                if (renderPipeline != null)
-                {
-                    QualitySettings.maximumLODLevel = GetMinimumMaxLoDValue(renderPipeline);
-                }
-                else
-                {
-                    QualitySettings.maximumLODLevel = GetMinimumMaxLoDValue(hdPipelineAsset);
-                }
+                QualitySettings.maximumLODLevel = GetMinimumMaxLoDValue(renderPipeline);
             });
+        }
+
+        private static void GatherShaderFeatures()
+        {
+            s_SupportedFeaturesList.Clear();
+            using (ListPool<HDRenderPipelineAsset>.Get(out List<HDRenderPipelineAsset> hdrpAssets))
+            {
+                bool buildingForHDRP = EditorUserBuildSettings.activeBuildTarget.TryGetRenderPipelineAssets(hdrpAssets);
+                if (buildingForHDRP)
+                {
+                    // Get Supported features & update data used for Shader Prefiltering and Scriptable Stripping
+                    GetSupportedShaderFeaturesFromAssets(ref hdrpAssets, ref s_SupportedFeaturesList);
+                }
+            }
+        }
+
+        private static void GetSupportedShaderFeaturesFromAssets(ref List<HDRenderPipelineAsset> hdrpAssets, ref List<ShaderFeatures> rendererFeaturesList)
+        {
+            for (int hdrpAssetIndex = 0; hdrpAssetIndex < hdrpAssets.Count; hdrpAssetIndex++)
+            {
+                // Get the asset and check if it's valid
+                HDRenderPipelineAsset hdrpAsset = hdrpAssets[hdrpAssetIndex];
+                if (hdrpAsset == null)
+                    continue;
+
+                // Check the asset for supported features
+                ShaderFeatures hdrpAssetShaderFeatures = GetSupportedShaderFeaturesFromAsset(ref hdrpAsset);
+
+                // Creates a struct containing all the prefiltering settings for this asset
+                ShaderPrefilteringData spd = CreatePrefilteringSettings(ref hdrpAssetShaderFeatures);
+
+                // Update the Prefiltering settings for this URP asset
+                hdrpAsset.UpdateShaderKeywordPrefiltering(ref spd);
+
+                // Mark the asset dirty so it can be serialized once the build is finished
+                EditorUtility.SetDirty(hdrpAsset);
+            }
+        }
+
+        private static ShaderFeatures GetSupportedShaderFeaturesFromAsset(ref HDRenderPipelineAsset hdrpAsset)
+        {
+            ShaderFeatures hdrpAssetShaderFeatures = ShaderFeatures.None;
+
+            if (hdrpAsset.gpuResidentDrawerMode != GPUResidentDrawerMode.Disabled)
+                hdrpAssetShaderFeatures |= ShaderFeatures.UseLegacyLightmaps;
+
+            return hdrpAssetShaderFeatures;
+        }
+
+        private static ShaderPrefilteringData CreatePrefilteringSettings(ref ShaderFeatures shaderFeatures)
+        {
+            ShaderPrefilteringData spd = new();
+
+            spd.useLegacyLightmaps = IsFeatureEnabled(shaderFeatures, ShaderFeatures.UseLegacyLightmaps);
+
+            return spd;
+        }
+
+        // Checks whether a ShaderFeature is enabled or not
+        private static bool IsFeatureEnabled(ShaderFeatures featureMask, ShaderFeatures feature)
+        {
+            return (featureMask & feature) != 0;
+        }
+
+        public void OnPostprocessBuild(BuildReport report)
+        {
+            // Clean up the build data once we have finishing building
+            m_BuildData?.Dispose();
+            m_BuildData = null;
         }
     }
 }

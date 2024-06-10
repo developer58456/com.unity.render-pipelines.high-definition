@@ -25,30 +25,48 @@ namespace UnityEditor.Rendering.HighDefinition
         public SerializedProperty supportSSGI;
         public SerializedProperty supportSubsurfaceScattering;
         public SerializedScalableSetting sssSampleBudget;
+        public SerializedScalableSetting sssDownsampleSteps;
         [FormerlySerializedAs("supportVolumetric")]
         public SerializedProperty supportVolumetrics;
         public SerializedProperty supportVolumetricClouds;
+
+        // Water
         public SerializedProperty supportWater;
         public SerializedProperty waterSimulationResolution;
-        public SerializedProperty waterCPUSimulation;
+        public SerializedProperty supportWaterDeformation;
+        public SerializedProperty deformationAtlasSize;
+        public SerializedProperty maximumDeformerCount;
+        public SerializedProperty supportWaterFoam;
+        public SerializedProperty foamAtlasSize;
+        public SerializedProperty supportWaterExclusion;
+        public SerializedProperty waterScriptInteractionsMode;
+        public SerializedProperty waterFullCPUSimulation;
+
+        public SerializedProperty supportComputeThickness;
+        public SerializedProperty computeThicknessResolution;
+        public SerializedProperty computeThicknessLayerMask;
+
         public SerializedProperty supportLightLayers;
         public SerializedProperty supportedLitShaderMode;
         public SerializedProperty colorBufferFormat;
         public SerializedProperty supportCustomPass;
         public SerializedProperty customBufferFormat;
+        public SerializedProperty renderingLayerMaskBuffer;
         public SerializedScalableSetting planarReflectionResolution;
         public SerializedScalableSetting cubeReflectionResolution;
         public SerializedProperty supportDecals;
         public SerializedProperty supportDecalLayers;
         public SerializedProperty supportSurfaceGradient;
         public SerializedProperty decalNormalBufferHP;
+        public SerializedProperty supportHighQualityLineRendering;
+        public SerializedProperty highQualityLineRenderingMemoryBudget;
 
         public SerializedProperty MSAASampleCount;
         public SerializedProperty supportMotionVectors;
         public SerializedProperty supportRuntimeAOVAPI;
-        public SerializedProperty supportDitheringCrossFade;
         public SerializedProperty supportTerrainHole;
         public SerializedProperty supportRayTracing;
+        public SerializedProperty supportVFXRayTracing;
         public SerializedProperty supportedRayTracingMode;
         public SerializedProperty supportDistortion;
         public SerializedProperty supportTransparentBackface;
@@ -56,12 +74,16 @@ namespace UnityEditor.Rendering.HighDefinition
         public SerializedProperty supportTransparentDepthPostpass;
         internal SerializedProperty lightProbeSystem;
         internal SerializedProperty probeVolumeTextureSize;
+        internal SerializedProperty supportProbeVolumeScenarios;
+        internal SerializedProperty supportProbeVolumeScenarioBlending;
         internal SerializedProperty probeVolumeBlendingTextureSize;
-        internal SerializedProperty supportProbeVolumeStreaming;
+        internal SerializedProperty supportProbeVolumeGPUStreaming;
+        internal SerializedProperty supportProbeVolumeDiskStreaming;
         internal SerializedProperty probeVolumeSHBands;
-        
-        public SerializedProperty supportDataDrivenLensFlare;
 
+        public SerializedProperty supportScreenSpaceLensFlare;
+        public SerializedProperty supportDataDrivenLensFlare;
+        
         public SerializedGlobalLightLoopSettings lightLoopSettings;
         public SerializedHDShadowInitParameters hdShadowInitParams;
         public SerializedGlobalDecalSettings decalSettings;
@@ -71,6 +93,7 @@ namespace UnityEditor.Rendering.HighDefinition
         public SerializedXRSettings xrSettings;
         public SerializedPostProcessingQualitySettings postProcessQualitySettings;
         public SerializedLightingQualitySettings lightingQualitySettings;
+        public SerializedGPUResidentDrawerSettings gpuResidentDrawerSettings;
 
         public SerializedLightSettings lightSettings;
         public SerializedScalableSetting lodBias;
@@ -79,6 +102,9 @@ namespace UnityEditor.Rendering.HighDefinition
 #pragma warning disable 618 // Type or member is obsolete
         [FormerlySerializedAs("enableUltraQualitySSS"), FormerlySerializedAs("increaseSssSampleCount"), Obsolete("For data migration")]
         SerializedProperty m_ObsoleteincreaseSssSampleCount;
+
+        [FormerlySerializedAs("supportDitheringCrossFade"), Obsolete("Merged with LOD Quality Setting")]
+        private SerializedProperty m_ObsoleteSupportDitheringCrossFade;
 #pragma warning restore 618
 
         public SerializedRenderPipelineSettings(SerializedProperty root)
@@ -92,17 +118,30 @@ namespace UnityEditor.Rendering.HighDefinition
             supportSSGI = root.Find((RenderPipelineSettings s) => s.supportSSGI);
             supportSubsurfaceScattering = root.Find((RenderPipelineSettings s) => s.supportSubsurfaceScattering);
             sssSampleBudget = new SerializedScalableSetting(root.Find((RenderPipelineSettings s) => s.sssSampleBudget));
+            sssDownsampleSteps = new SerializedScalableSetting(root.Find((RenderPipelineSettings s) => s.sssDownsampleSteps));
             supportVolumetrics = root.Find((RenderPipelineSettings s) => s.supportVolumetrics);
             supportVolumetricClouds = root.Find((RenderPipelineSettings s) => s.supportVolumetricClouds);
 
             // Water data
             supportWater = root.Find((RenderPipelineSettings s) => s.supportWater);
             waterSimulationResolution = root.Find((RenderPipelineSettings s) => s.waterSimulationResolution);
-            waterCPUSimulation = root.Find((RenderPipelineSettings s) => s.waterCPUSimulation);
+            supportWaterDeformation = root.Find((RenderPipelineSettings s) => s.supportWaterDeformation);
+            deformationAtlasSize = root.Find((RenderPipelineSettings s) => s.deformationAtlasSize);
+            maximumDeformerCount = root.Find((RenderPipelineSettings s) => s.maximumDeformerCount);
+            supportWaterFoam = root.Find((RenderPipelineSettings s) => s.supportWaterFoam);
+            foamAtlasSize = root.Find((RenderPipelineSettings s) => s.foamAtlasSize);
+            supportWaterExclusion = root.Find((RenderPipelineSettings s) => s.supportWaterExclusion);
+            waterScriptInteractionsMode = root.Find((RenderPipelineSettings s) => s.waterScriptInteractionsMode);
+            waterFullCPUSimulation = root.Find((RenderPipelineSettings s) => s.waterFullCPUSimulation);
+
+            supportComputeThickness = root.Find((RenderPipelineSettings s) => s.supportComputeThickness);
+            computeThicknessResolution = root.Find((RenderPipelineSettings s) => s.computeThicknessResolution);
+            computeThicknessLayerMask = root.Find((RenderPipelineSettings s) => s.computeThicknessLayerMask);
 
             supportLightLayers = root.Find((RenderPipelineSettings s) => s.supportLightLayers);
             colorBufferFormat = root.Find((RenderPipelineSettings s) => s.colorBufferFormat);
             customBufferFormat = root.Find((RenderPipelineSettings s) => s.customBufferFormat);
+            renderingLayerMaskBuffer = root.Find((RenderPipelineSettings s) => s.renderingLayerMaskBuffer);
             supportCustomPass = root.Find((RenderPipelineSettings s) => s.supportCustomPass);
             supportedLitShaderMode = root.Find((RenderPipelineSettings s) => s.supportedLitShaderMode);
             planarReflectionResolution = new SerializedScalableSetting(root.Find((RenderPipelineSettings s) => s.planarReflectionResolution));
@@ -115,7 +154,6 @@ namespace UnityEditor.Rendering.HighDefinition
             MSAASampleCount = root.Find((RenderPipelineSettings s) => s.msaaSampleCount);
             supportMotionVectors = root.Find((RenderPipelineSettings s) => s.supportMotionVectors);
             supportRuntimeAOVAPI = root.Find((RenderPipelineSettings s) => s.supportRuntimeAOVAPI);
-            supportDitheringCrossFade = root.Find((RenderPipelineSettings s) => s.supportDitheringCrossFade);
             supportTerrainHole = root.Find((RenderPipelineSettings s) => s.supportTerrainHole);
             supportDistortion = root.Find((RenderPipelineSettings s) => s.supportDistortion);
             supportTransparentBackface = root.Find((RenderPipelineSettings s) => s.supportTransparentBackface);
@@ -123,11 +161,17 @@ namespace UnityEditor.Rendering.HighDefinition
             supportTransparentDepthPostpass = root.Find((RenderPipelineSettings s) => s.supportTransparentDepthPostpass);
             lightProbeSystem = root.Find((RenderPipelineSettings s) => s.lightProbeSystem);
             probeVolumeTextureSize = root.Find((RenderPipelineSettings s) => s.probeVolumeMemoryBudget);
+            supportProbeVolumeScenarios = root.Find((RenderPipelineSettings s) => s.supportProbeVolumeScenarios);
+            supportProbeVolumeScenarioBlending = root.Find((RenderPipelineSettings s) => s.supportProbeVolumeScenarioBlending);
             probeVolumeBlendingTextureSize = root.Find((RenderPipelineSettings s) => s.probeVolumeBlendingMemoryBudget);
-            supportProbeVolumeStreaming = root.Find((RenderPipelineSettings s) => s.supportProbeVolumeStreaming);
+            supportProbeVolumeGPUStreaming = root.Find((RenderPipelineSettings s) => s.supportProbeVolumeGPUStreaming);
+            supportProbeVolumeDiskStreaming = root.Find((RenderPipelineSettings s) => s.supportProbeVolumeDiskStreaming);
             probeVolumeSHBands = root.Find((RenderPipelineSettings s) => s.probeVolumeSHBands);
             supportRayTracing = root.Find((RenderPipelineSettings s) => s.supportRayTracing);
+            supportVFXRayTracing = root.Find((RenderPipelineSettings s) => s.supportVFXRayTracing);
             supportedRayTracingMode = root.Find((RenderPipelineSettings s) => s.supportedRayTracingMode);
+            supportHighQualityLineRendering = root.Find((RenderPipelineSettings s) => s.supportHighQualityLineRendering);
+            highQualityLineRenderingMemoryBudget = root.Find((RenderPipelineSettings s) => s.highQualityLineRenderingMemoryBudget);
 
             lightLoopSettings = new SerializedGlobalLightLoopSettings(root.Find((RenderPipelineSettings s) => s.lightLoopSettings));
             hdShadowInitParams = new SerializedHDShadowInitParameters(root.Find((RenderPipelineSettings s) => s.hdShadowInitParams));
@@ -138,15 +182,18 @@ namespace UnityEditor.Rendering.HighDefinition
             xrSettings = new SerializedXRSettings(root.Find((RenderPipelineSettings s) => s.xrSettings));
             postProcessQualitySettings = new SerializedPostProcessingQualitySettings(root.Find((RenderPipelineSettings s) => s.postProcessQualitySettings));
             
+            supportScreenSpaceLensFlare = root.Find((RenderPipelineSettings s) => s.supportScreenSpaceLensFlare);
             supportDataDrivenLensFlare = root.Find((RenderPipelineSettings s) => s.supportDataDrivenLensFlare);
 
             lightSettings = new SerializedLightSettings(root.Find((RenderPipelineSettings s) => s.lightSettings));
             lodBias = new SerializedScalableSetting(root.Find((RenderPipelineSettings s) => s.lodBias));
             maximumLODLevel = new SerializedScalableSetting(root.Find((RenderPipelineSettings s) => s.maximumLODLevel));
             lightingQualitySettings = new SerializedLightingQualitySettings(root.Find((RenderPipelineSettings s) => s.lightingQualitySettings));
+            gpuResidentDrawerSettings = new SerializedGPUResidentDrawerSettings(root.Find((RenderPipelineSettings s) => s.gpuResidentDrawerSettings));
 
 #pragma warning disable 618 // Type or member is obsolete
             m_ObsoleteincreaseSssSampleCount = root.Find((RenderPipelineSettings s) => s.m_ObsoleteincreaseSssSampleCount);
+            m_ObsoleteSupportDitheringCrossFade = root.Find((RenderPipelineSettings s) => s.supportDitheringCrossFade);
 #pragma warning restore 618
         }
     }

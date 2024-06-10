@@ -37,6 +37,10 @@ namespace UnityEngine.Rendering.HighDefinition
         VolumetricClouds m_VolumetricClouds;
         VolumetricClouds m_VolumetricCloudSettingsFromProfile;
 
+        // Reflection Probes
+        [SerializeField, Range(1, 5), Tooltip("Controls how many times a reflection includes other reflections. A value of 1 results in the Scene being rendered once so mirrored reflections will be black.")]
+        internal int bounces = 1;
+
         internal SkySettings skySettings
         {
             get
@@ -211,10 +215,8 @@ namespace UnityEngine.Rendering.HighDefinition
             var newParameters = component.parameters;
             var profileParameters = componentFromProfile.parameters;
 
-            var defaultVolume = HDRenderPipelineGlobalSettings.instance.GetOrCreateDefaultVolume();
-            T defaultComponent = null;
-            if (defaultVolume.sharedProfile != null)     // This can happen with old projects.
-                defaultVolume.sharedProfile.TryGet(type, out defaultComponent);
+            // Get component in default state (= default-constructed component + global profile + SRP asset profile)
+            var defaultComponent = VolumeManager.instance.GetVolumeComponentDefaultState(type);
             var defaultParameters = defaultComponent != null ? defaultComponent.parameters : null;     // Can be null if the profile does not contain the component.
 
             // Seems to inexplicably happen sometimes on domain reload.
@@ -316,26 +318,9 @@ namespace UnityEngine.Rendering.HighDefinition
             m_NeedUpdateStaticLightingSky = true;
         }
 
-        // Fix UUM-45262: There is a race condition between StaticLightingSky.OnEnable() and VolumeComponent.OnEnable().
-        // StaticLightingSky wants to use the VolumeComponents assuming that OnEnable() has been executed (and therefore
-        // VolumeComponent.parameters has been populated), but nothing guarantees this. In this case we need to defer
-        // StaticLightingSky update. This issue is fixed in 2023.2.
-        bool VerifyProfileComponentsInitialized()
-        {
-            if (m_Profile != null)
-            {
-                foreach (var c in m_Profile.components)
-                {
-                    if (c.parameters == null || c.parameters.Count == 0)
-                        return false;
-                }
-            }
-            return true;
-        }
-
         void OnEnable()
         {
-            if (VerifyProfileComponentsInitialized())
+            if (VolumeManager.instance.isInitialized)
             {
                 UpdateCurrentStaticLightingSky();
                 UpdateCurrentStaticLightingClouds();
@@ -362,7 +347,7 @@ namespace UnityEngine.Rendering.HighDefinition
 
         void Update()
         {
-            if (m_NeedUpdateStaticLightingSky)
+            if (m_NeedUpdateStaticLightingSky && VolumeManager.instance.isInitialized)
             {
                 UpdateCurrentStaticLightingSky();
                 UpdateCurrentStaticLightingClouds();

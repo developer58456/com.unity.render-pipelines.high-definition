@@ -1,16 +1,16 @@
 using System.Collections.Generic;
 using System.Linq;
-using UnityEditor.VFX.Block;
+
 using UnityEngine;
 
 namespace UnityEditor.VFX.HDRP
 {
-    [VFXInfo(experimental = true)]
+    [VFXInfo(name = "Output ParticleStrip|HDRP Lit|Quad", category = "#3Output Strip", experimental = true, synonyms = new []{ "Trail", "Ribbon" })]
     class VFXLitQuadStripOutput : VFXAbstractParticleHDRPLitOutput
     {
         protected VFXLitQuadStripOutput() : base(true) { }  // strips
 
-        public override string name { get { return "Output ParticleStrip HDRP Lit Quad"; } }
+        public override string name => "Output ParticleStrip".AppendLabel("HDRP Lit", false) + "\nQuad";
         public override string codeGeneratorTemplate { get { return RenderPipeTemplate("VFXParticleLitPlanarPrimitive"); } }
         public override VFXTaskType taskType { get { return VFXTaskType.ParticleQuadOutput; } }
         public override bool supportsUV { get { return true; } }
@@ -46,7 +46,7 @@ namespace UnityEditor.VFX.HDRP
             get
             {
                 var properties = base.inputProperties;
-                if (normalBending && !GeneratesWithShaderGraph())
+                if (normalBending)
                     properties = properties.Concat(PropertiesFromType("NormalBendingProperties"));
                 if (tilingMode == StripTilingMode.Custom)
                     properties = properties.Concat(PropertiesFromType("CustomUVInputProperties"));
@@ -72,9 +72,10 @@ namespace UnityEditor.VFX.HDRP
                 yield return new VFXAttributeInfo(VFXAttribute.PivotY, VFXAttributeMode.Read);
                 yield return new VFXAttributeInfo(VFXAttribute.PivotZ, VFXAttributeMode.Read);
                 yield return new VFXAttributeInfo(VFXAttribute.Size, VFXAttributeMode.Read);
+                yield return new VFXAttributeInfo(VFXAttribute.ScaleY, VFXAttributeMode.Read);
 
-                if (usesFlipbook)
-                    yield return new VFXAttributeInfo(VFXAttribute.TexIndex, VFXAttributeMode.Read);
+                foreach (var attribute in flipbookAttributes)
+                    yield return attribute;
             }
         }
 
@@ -83,7 +84,7 @@ namespace UnityEditor.VFX.HDRP
             foreach (var exp in base.CollectGPUExpressions(slotExpressions))
                 yield return exp;
 
-            if (normalBending && !GeneratesWithShaderGraph())
+            if (normalBending)
                 yield return slotExpressions.First(o => o.name == "normalBendingFactor");
             if (tilingMode == StripTilingMode.Custom)
                 yield return slotExpressions.First(o => o.name == "texCoord");
@@ -96,7 +97,7 @@ namespace UnityEditor.VFX.HDRP
                 foreach (var d in base.additionalDefines)
                     yield return d;
 
-                if (normalBending && !GeneratesWithShaderGraph())
+                if (normalBending)
                     yield return "USE_NORMAL_BENDING";
 
                 if (tilingMode == StripTilingMode.Stretch)
@@ -117,6 +118,14 @@ namespace UnityEditor.VFX.HDRP
         {
             VFXQuadStripOutput.SanitizeOrient(this, version, UseCustomZAxis);
             base.Sanitize(version);
+        }
+
+        internal sealed override void GenerateErrors(VFXErrorReporter report)
+        {
+            if (GetAttributesInfos().Any(x => x.mode.HasFlag(VFXAttributeMode.Write) && x.attrib.Equals(VFXAttribute.Position)))
+            {
+                report.RegisterError("WritePositionInStrip", VFXErrorType.Warning, VFXQuadStripOutput.WriteToPositionMessage, this);
+            }
         }
     }
 }

@@ -16,7 +16,7 @@ namespace UnityEditor.Rendering.HighDefinition
             {
                 EditorGUILayout.Space();
                 HDEditorUtils.QualitySettingsHelpBox(HDRenderPipelineUI.Styles.rayTracingUnsupportedMessage,
-                    MessageType.Warning, HDRenderPipelineUI.Expandable.Rendering,
+                    MessageType.Warning, HDRenderPipelineUI.ExpandableGroup.Rendering,
                     "m_RenderPipelineSettings.supportRayTracing");
             }
             using var disableScope = new EditorGUI.DisabledScope(notSupported);

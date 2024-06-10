@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using UnityEditor.IMGUI.Controls;
+using UnityEditor.ShaderGraph;
 using UnityEditor.ShortcutManagement;
 using UnityEngine;
 using UnityEngine.Rendering.HighDefinition;
 using static UnityEditorInternal.EditMode;
+using RenderingLayerMask = UnityEngine.RenderingLayerMask;
 
 namespace UnityEditor.Rendering.HighDefinition
 {
@@ -27,7 +29,7 @@ namespace UnityEditor.Rendering.HighDefinition
         static Color s_LastColor;
         static void UpdateColorsInHandlesIfRequired()
         {
-            Color c = HDRenderPipelinePreferences.decalGizmoColor;
+            Color c = DecalPreferences.decalGizmoColor;
             if (c != s_LastColor)
             {
                 if (s_BoxHandle != null && !s_BoxHandle.Equals(null))
@@ -49,6 +51,7 @@ namespace UnityEditor.Rendering.HighDefinition
         SerializedProperty m_UVScaleProperty;
         SerializedProperty m_UVBiasProperty;
         SerializedProperty m_AffectsTransparencyProperty;
+        SerializedScalableSettingValue m_TransparentTextureResolution;
         SerializedProperty m_ScaleMode;
         SerializedProperty m_Size;
         SerializedProperty[] m_SizeValues;
@@ -74,7 +77,21 @@ namespace UnityEditor.Rendering.HighDefinition
             }
         }
 
-        bool showAffectTransparency => ((target as DecalProjector).material != null) && DecalSystem.IsHDRenderPipelineDecal((target as DecalProjector).material.shader);
+        private bool affectTransparency(DecalProjector decalProjector)
+        {
+            Material material = decalProjector.material;
+            if (material == null)
+                return false;
+
+            if (material.IsShaderGraph())
+            {
+                return DecalSystem.IsDecalMaterial(material);
+            }
+            else
+                return DecalSystem.IsHDRenderPipelineDecal(material.shader);
+        }
+
+        bool showAffectTransparency => affectTransparency(target as DecalProjector);
 
         bool showAffectTransparencyHaveMultipleDifferentValue
         {
@@ -83,17 +100,29 @@ namespace UnityEditor.Rendering.HighDefinition
                 if (targets.Length < 2)
                     return false;
                 DecalProjector decalProjector0 = (targets[0] as DecalProjector);
-                bool show = decalProjector0.material != null && DecalSystem.IsHDRenderPipelineDecal(decalProjector0.material.shader);
+                bool show = affectTransparency(decalProjector0);
                 for (int index = 0; index < targets.Length; ++index)
                 {
                     if ((targets[index] as DecalProjector).material != null)
                     {
                         DecalProjector decalProjectori = (targets[index] as DecalProjector);
-                        if (decalProjectori != null && DecalSystem.IsHDRenderPipelineDecal(decalProjectori.material.shader) ^ show)
+                        if (decalProjectori != null && affectTransparency(decalProjectori) ^ show)
                             return true;
                     }
                 }
                 return false;
+            }
+        }
+
+        bool showTransparentTextureResolution
+        {
+            get
+            {
+                DecalProjector projector = target as DecalProjector;
+                if (!affectTransparency(projector))
+                    return false;
+
+                return projector.material.IsShaderGraph() && m_AffectsTransparencyProperty.boolValue;
             }
         }
 
@@ -199,6 +228,7 @@ namespace UnityEditor.Rendering.HighDefinition
             m_UVScaleProperty = serializedObject.FindProperty("m_UVScale");
             m_UVBiasProperty = serializedObject.FindProperty("m_UVBias");
             m_AffectsTransparencyProperty = serializedObject.FindProperty("m_AffectsTransparency");
+            m_TransparentTextureResolution = new SerializedScalableSettingValue(serializedObject.Find((DecalProjector p) => p.TransparentTextureResolution));
             m_ScaleMode = serializedObject.FindProperty("m_ScaleMode");
             m_Size = serializedObject.FindProperty("m_Size");
             m_SizeValues = new[]
@@ -443,6 +473,12 @@ namespace UnityEditor.Rendering.HighDefinition
         [DrawGizmo(GizmoType.Selected | GizmoType.Active)]
         static void DrawGizmosSelected(DecalProjector decalProjector, GizmoType gizmoType)
         {
+            float lod = Gizmos.CalculateLOD(decalProjector.transform.position, decalProjector.size.magnitude * 0.25f);
+
+            // skip drawing anything if it will be too small or behind the camera on screen
+            if (lod < 0.1f)
+                return;
+
             UpdateColorsInHandlesIfRequired();
 
             const float k_DotLength = 5f;
@@ -458,37 +494,45 @@ namespace UnityEditor.Rendering.HighDefinition
                 boxHandle.size = scaledSize;
                 bool isVolumeEditMode = editMode == k_EditShapePreservingUV || editMode == k_EditShapeWithoutPreservingUV;
                 bool isPivotEditMode = editMode == k_EditUVAndPivot;
-                boxHandle.DrawHull(isVolumeEditMode);
-
-                Vector3 pivot = Vector3.zero;
-                Vector3 projectedPivot = new Vector3(0, 0, scaledPivot.z - .5f * scaledSize.z);
-
-                if (isPivotEditMode)
+                if (lod > 0.5f)
                 {
-                    Handles.DrawDottedLines(new[] { projectedPivot, pivot }, k_DotLength);
+                    boxHandle.DrawHull(isVolumeEditMode);
                 }
                 else
+                    Handles.DrawWireCube(scaledPivot, scaledSize); // simplify the drawing if too small on screen
+
+                if (lod == 1.0f) // only draw when big enough on screen to be useable
                 {
-                    float arrowSize = scaledSize.z * 0.25f;
-                    Handles.ArrowHandleCap(0, projectedPivot, Quaternion.identity, arrowSize, EventType.Repaint);
-                }
+                    Vector3 pivot = Vector3.zero;
+                    Vector3 projectedPivot = new Vector3(0, 0, scaledPivot.z - .5f * scaledSize.z);
 
-                //draw UV and bolder edges
-                using (new Handles.DrawingScope(Matrix4x4.TRS(decalProjector.transform.position + decalProjector.transform.rotation * new Vector3(scaledPivot.x, scaledPivot.y, scaledPivot.z - .5f * scaledSize.z), decalProjector.transform.rotation, Vector3.one)))
-                {
-                    Vector2 UVSize = new Vector2(
-                        (decalProjector.uvScale.x > k_Limit || decalProjector.uvScale.x < -k_Limit) ? 0f : scaledSize.x / decalProjector.uvScale.x,
-                        (decalProjector.uvScale.y > k_Limit || decalProjector.uvScale.y < -k_Limit) ? 0f : scaledSize.y / decalProjector.uvScale.y
-                    );
-                    Vector2 UVCenter = UVSize * .5f - new Vector2(decalProjector.uvBias.x * UVSize.x, decalProjector.uvBias.y * UVSize.y) - (Vector2)scaledSize * .5f;
+                    if (isPivotEditMode)
+                    {
+                        Handles.DrawDottedLines(new[] { projectedPivot, pivot }, k_DotLength);
+                    }
+                    else
+                    {
+                        float arrowSize = scaledSize.z * 0.25f;
+                        Handles.ArrowHandleCap(0, projectedPivot, Quaternion.identity, arrowSize, EventType.Repaint);
+                    }
 
-                    uvHandles.center = UVCenter;
-                    uvHandles.size = UVSize;
-                    uvHandles.DrawRect(dottedLine: true, screenSpaceSize: k_DotLength);
+                    //draw UV and bolder edges
+                    using (new Handles.DrawingScope(Matrix4x4.TRS(decalProjector.transform.position + decalProjector.transform.rotation * new Vector3(scaledPivot.x, scaledPivot.y, scaledPivot.z - .5f * scaledSize.z), decalProjector.transform.rotation, Vector3.one)))
+                    {
+                        Vector2 UVSize = new Vector2(
+                            (decalProjector.uvScale.x > k_Limit || decalProjector.uvScale.x < -k_Limit) ? 0f : scaledSize.x / decalProjector.uvScale.x,
+                            (decalProjector.uvScale.y > k_Limit || decalProjector.uvScale.y < -k_Limit) ? 0f : scaledSize.y / decalProjector.uvScale.y
+                        );
+                        Vector2 UVCenter = UVSize * .5f - new Vector2(decalProjector.uvBias.x * UVSize.x, decalProjector.uvBias.y * UVSize.y) - (Vector2)scaledSize * .5f;
 
-                    uvHandles.center = default;
-                    uvHandles.size = scaledSize;
-                    uvHandles.DrawRect(dottedLine: false, thickness: 3f);
+                        uvHandles.center = UVCenter;
+                        uvHandles.size = UVSize;
+                        uvHandles.DrawRect(dottedLine: true, screenSpaceSize: k_DotLength);
+
+                        uvHandles.center = default;
+                        uvHandles.size = scaledSize;
+                        uvHandles.DrawRect(dottedLine: false, thickness: 3f);
+                    }
                 }
             }
         }
@@ -616,7 +660,8 @@ namespace UnityEditor.Rendering.HighDefinition
             if (!supportDecals)
             {
                 HDEditorUtils.QualitySettingsHelpBox("The current HDRP Asset does not support Decals.", MessageType.Error,
-                    HDRenderPipelineUI.Expandable.Decal, "m_RenderPipelineSettings.supportDecals");
+                    HDRenderPipelineUI.ExpandableGroup.Rendering,
+                    HDRenderPipelineUI.ExpandableRendering.Decal, "m_RenderPipelineSettings.supportDecals");
                 EditorGUILayout.Space();
             }
 
@@ -678,7 +723,16 @@ namespace UnityEditor.Rendering.HighDefinition
                     decalLayerEnabled = supportDecals && hdrp.currentPlatformRenderPipelineSettings.supportDecalLayers;
                     using (new EditorGUI.DisabledScope(!decalLayerEnabled))
                     {
-                        EditorGUILayout.PropertyField(m_DecalLayerMask, k_DecalLayerMaskContent);
+                        var mask = m_DecalLayerMask.uintValue;
+                        EditorGUI.BeginChangeCheck();
+                        mask = EditorGUILayout.RenderingLayerMaskField(k_DecalLayerMaskContent, mask);
+                        if (EditorGUI.EndChangeCheck())
+                        {
+                            m_DecalLayerMask.intValue = unchecked((int) mask);
+                            EditorUtility.SetDirty(m_DecalLayerMask.serializedObject.targetObject);
+                        }
+                        if (RenderingLayerMask.GetLastDefinedRenderingLayerIndex() > 16)
+                            EditorGUILayout.HelpBox($"One or more of the Rendering Layers is defined outside of 16 limit. HDRP supports only 16 layers.", MessageType.Warning);
                     }
                 }
 
@@ -708,7 +762,9 @@ namespace UnityEditor.Rendering.HighDefinition
                 if (!decalLayerEnabled)
                 {
                     HDEditorUtils.QualitySettingsHelpBox("Enable 'Decal Layers' in your HDRP Asset if you want to control the Angle Fade. There is a performance cost of enabling this option.",
-                        MessageType.Info, HDRenderPipelineUI.Expandable.Decal, "m_RenderPipelineSettings.supportDecalLayers");
+                        MessageType.Info,
+                        HDRenderPipelineUI.ExpandableGroup.Rendering,
+                        HDRenderPipelineUI.ExpandableRendering.Decal, "m_RenderPipelineSettings.supportDecalLayers");
                     EditorGUILayout.Space();
                 }
 
@@ -727,6 +783,12 @@ namespace UnityEditor.Rendering.HighDefinition
                     EditorGUILayout.PropertyField(m_AffectsTransparencyProperty, k_AffectTransparentContent);
                     if (m_AffectsTransparencyProperty.boolValue && !DecalSystem.instance.IsAtlasAllocatedSuccessfully())
                         EditorGUILayout.HelpBox(DecalSystem.s_AtlasSizeWarningMessage, MessageType.Warning);
+                }
+
+                if (showTransparentTextureResolution)
+                {
+                    var scalableSetting = hdrp.currentPlatformRenderPipelineSettings.decalSettings.transparentTextureResolution;
+                    m_TransparentTextureResolution.LevelAndIntGUILayout(k_TransparentTextureResolutionContent, scalableSetting, hdrp.name);
                 }
             }
             if (EditorGUI.EndChangeCheck())

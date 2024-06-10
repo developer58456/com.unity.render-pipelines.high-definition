@@ -95,12 +95,6 @@ namespace UnityEditor.Rendering.HighDefinition
             public static readonly ConfigStyle hdrpAssetQualityAssigned = new ConfigStyle(
                 label: L10n.Tr("Assigned - Quality"),
                 error: L10n.Tr("The RenderPipelineAsset assigned in the current Quality must be null or a HDRenderPipelineAsset. If it is null, the asset for the current Quality will be the one in Graphics Settings. (The Fix or Fix All button will nullify it)"));
-            public static readonly ConfigStyle hdrpRuntimeResources = new ConfigStyle(
-                label: L10n.Tr("Runtime resources"),
-                error: L10n.Tr("There is an issue with the runtime resources!"));
-            public static readonly ConfigStyle hdrpEditorResources = new ConfigStyle(
-                label: L10n.Tr("Editor resources"),
-                error: L10n.Tr("There is an issue with the editor resources!"));
             public static readonly ConfigStyle hdrpBatcher = new ConfigStyle(
                 label: L10n.Tr("SRP Batcher"),
                 error: L10n.Tr("SRP Batcher must be enabled!"));
@@ -191,15 +185,21 @@ namespace UnityEditor.Rendering.HighDefinition
             public static readonly ConfigStyle dxrBuildTarget = new ConfigStyle(
                 label: L10n.Tr("Build Target"),
                 error: L10n.Tr("To build your Project as a Unity Player your build target must be StandaloneWindows64, Playstation5 or Xbox series X"));
-            public static readonly ConfigStyle dxrStaticBatching = new ConfigStyle(
-                label: L10n.Tr("Static Batching"),
-                error: L10n.Tr("Static Batching is not supported!"));
             public static readonly ConfigStyle dxrActivated = new ConfigStyle(
                 label: L10n.Tr("DXR activated"),
                 error: L10n.Tr("DXR is not activated!"));
             public static readonly ConfigStyle dxrResources = new ConfigStyle(
                 label: L10n.Tr("DXR resources"),
                 error: L10n.Tr("There is an issue with the DXR resources! Alternatively, Direct3D is not set as API (can be fixed with option above) or your hardware and/or OS cannot be used for DXR! (unfixable)"));
+
+            public static readonly ConfigStyle dxrVfx = new ConfigStyle(
+                label: L10n.Tr("Ray-traced Visual Effects (Asset)"),
+                error: L10n.Tr($"Visual Effects Ray Tracing are disabled in the current HDRP asset which means you cannot enable Ray Tracing for Visual Effects. To enable this feature, open your HDRP Asset, go to Rendering, and enable Visual Effects Ray Tracing. This configuration depends on {dxrActivated.label}. This means, before you fix this, you must fix {dxrActivated.label} first."),
+                messageType: MessageType.Warning);
+            public static readonly ConfigStyle dxrVfxFS = new ConfigStyle(
+                label: L10n.Tr("Ray-traced Visual Effects (HDRP Global Settings)"),
+                error: L10n.Tr($"Visual Effects Ray Tracing are disabled in the default Camera Frame Settings. This means Cameras that use these Frame Settings do not render visual effects. To enable this feature, go to Project Settings > Graphics > HDRP Global Settings > Frame Settings (Default Values) > Camera > Lighting and enable Ray Tracing VFX. This configuration depends on {dxrVfx.label}. This means, before you fix this, you must fix {dxrVfx.label} first."),
+                messageType: MessageType.Info);
 
             public static readonly string hdrpAssetDisplayDialogTitle = L10n.Tr("Create or Load HDRenderPipelineAsset");
             public static readonly string hdrpAssetDisplayDialogContent = L10n.Tr("Do you want to create a fresh HDRenderPipelineAsset in the default resource folder and automatically assign it?");
@@ -590,7 +590,7 @@ namespace UnityEditor.Rendering.HighDefinition
                     entry.configStyle.messageType,
                     entry.configStyle.button,
                     () => entry.check(),
-                    entry.fix == null ? (Action)null : () => entry.fix(fromAsync: false),
+                    () => entry.fix?.Invoke(false),
                     entry.indent,
                     entry.configStyle.messageType == MessageType.Error || entry.forceDisplayCheck,
                     entry.skipErrorIcon));

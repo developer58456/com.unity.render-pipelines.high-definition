@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEditor.Callbacks;
 using UnityEditor.Rendering.Analytics;
 using UnityEditor.Rendering.HighDefinition.Analytics;
 using UnityEngine;
@@ -17,9 +18,13 @@ namespace UnityEditor.Rendering.HighDefinition
 {
     class MaterialModificationProcessor : AssetModificationProcessor
     {
+        static readonly string s_ShaderGraphExtensionMeta = $".{ShaderGraphImporter.Extension}.meta";
+        static readonly string s_ShaderGraphExtension = $".{ShaderGraphImporter.Extension}";
+        const string k_MaterialExtension = ".mat";
+
         static void OnWillCreateAsset(string asset)
         {
-            if (asset.ToLowerInvariant().EndsWith(".mat"))
+            if (asset.HasExtension(k_MaterialExtension))
             {
                 MaterialPostprocessor.s_CreatedAssets.Add(asset);
                 return;
@@ -44,7 +49,7 @@ namespace UnityEditor.Rendering.HighDefinition
             // should be idempotent.
             // In other words, there shouldn't be anything to checkout for the .shadergraph per se.
             //
-            if (asset.ToLowerInvariant().EndsWith($".{ShaderGraphImporter.Extension}.meta"))
+            if (asset.HasExtension(s_ShaderGraphExtensionMeta))
             {
                 var sgPath = System.IO.Path.ChangeExtension(asset, null);
                 var importer = AssetImporter.GetAtPath(sgPath);
@@ -57,7 +62,7 @@ namespace UnityEditor.Rendering.HighDefinition
             }
 
             // Like stated above, doesnt happen:
-            if (asset.ToLowerInvariant().EndsWith($".{ShaderGraphImporter.Extension}"))
+            if (asset.HasExtension(s_ShaderGraphExtension))
             {
                 MaterialPostprocessor.s_CreatedAssets.Add(asset);
                 return;
@@ -276,172 +281,167 @@ namespace UnityEditor.Rendering.HighDefinition
             HDShaderUtils.ResetMaterialKeywords(material);
         }
 
-        static void RegisterReferencedDiffusionProfiles(Material material)
-        {
-            foreach (var nameID in GetShaderDiffusionProfileProperties(material.shader))
-            {
-                if (!material.HasProperty(nameID))
-                    continue;
+        static readonly string s_ShaderGraphExtensionMeta = $".{ShaderGraphImporter.Extension}.meta";
+        static readonly string s_ShaderGraphExtension = $".{ShaderGraphImporter.Extension}";
+        const string k_MaterialExtension = ".mat";
 
-                var diffusionProfile = GetDiffusionProfileAsset(material, nameID);
-                HDRenderPipelineGlobalSettings.instance.TryAutoRegisterDiffusionProfile(diffusionProfile);
-            }
-        }
-
+        [RunAfterClass(typeof(HDRenderPipelineGlobalSettingsPostprocessor))]
         static void OnPostprocessAllAssets(string[] importedAssets, string[] deletedAssets, string[] movedAssets, string[] movedFromAssetPaths)
         {
-            foreach (var asset in importedAssets)
+            using (var diffusionProfileRegisterer = new VolumeUtils.DiffusionProfileRegisterScope())
             {
-                // We intercept shadergraphs just to add them to s_ImportedAssetThatNeedSaving to make them editable when we save assets
-                if (asset.ToLowerInvariant().EndsWith($".{ShaderGraphImporter.Extension}"))
+                foreach (var asset in importedAssets)
                 {
-                    bool justCreated = s_CreatedAssets.Contains(asset);
-
-                    if (!justCreated)
+                    // We intercept shadergraphs just to add them to s_ImportedAssetThatNeedSaving to make them editable when we save assets
+                    if (asset.HasExtension(s_ShaderGraphExtension))
                     {
+                        bool justCreated = s_CreatedAssets.Contains(asset);
+
+                        if (!justCreated)
+                        {
+                            s_ImportedAssetThatNeedSaving.Add(asset);
+                            s_NeedsSavingAssets = true;
+                        }
+                        else
+                        {
+                            s_CreatedAssets.Remove(asset);
+                        }
+                        continue;
+                    }
+                    else if (!asset.HasExtension(k_MaterialExtension))
+                        continue;
+
+                    // Materials (.mat) post processing
+                    var material = (Material)AssetDatabase.LoadAssetAtPath(asset, typeof(Material));
+                    if (material == null)
+                        continue;
+
+                    // Register Diffuse Profiles
+                    diffusionProfileRegisterer.RegisterReferencedDiffusionProfilesFromMaterial(material);
+
+                    if (MaterialReimporter.s_ReimportShaderGraphDependencyOnMaterialUpdate && GraphUtil.IsShaderGraphAsset(material.shader))
+                    {
+                        // Check first if the HDRP shadergraph assigned needs a migration:
+                        // Here ignoreNonHDRPShaderGraphs = false is useful to not ignore non HDRP ShaderGraphs as
+                        // the detection is based on the presence of the "HDMetaData" object and old HDRP ShaderGraphs don't have these,
+                        // so we can conservatively force a re-import of any ShaderGraphs. Unity might not have reimported such ShaderGraphs
+                        // based on declared source dependencies by the ShaderGraphImporter because these might have moved / changed
+                        // for old ones. We can cover these cases here.
+                        //
+                        // Note we could also check this dependency in ReimportAllMaterials but in case a user manually re-imports a material,
+                        // (ie the OnPostprocessAllAssets call here is not generated from ReimportAllMaterials())
+                        // we would miss re-importing that dependency.
+                        if (MaterialReimporter.CheckHDShaderGraphVersionsForUpgrade("", material.shader, ignoreNonHDRPShaderGraphs: false))
+                        {
+                            s_ImportedMaterialCounter.TryGetValue(asset, out var importCounter);
+                            s_ImportedMaterialCounter[asset] = ++importCounter;
+
+                            // CheckHDShaderGraphVersionsForUpgrade always return true if a ShaderGraph don't have an HDMetaData attached
+                            // we need a check to avoid importing the same assets over and over again.
+                            if (importCounter > 2)
+                                continue;
+
+                            var shaderPath = AssetDatabase.GetAssetPath(material.shader.GetInstanceID());
+                            AssetDatabase.ImportAsset(shaderPath);
+
+                            // Restart the material import instead of proceeding otherwise the shadergraph will be processed after
+                            // (the above ImportAsset(shaderPath) returns before the actual re-importing taking place).
+                            AssetDatabase.ImportAsset(asset);
+                            continue;
+                        }
+                    }
+
+                    if (!HDShaderUtils.IsHDRPShader(material.shader, upgradable: true))
+                        continue;
+
+                    (ShaderID id, GUID subTargetGUID) = HDShaderUtils.GetShaderIDsFromShader(material.shader);
+                    var latestVersion = k_Migrations.Length;
+
+                    bool isMaterialUsingPlugin = HDShaderUtils.GetMaterialPluginSubTarget(subTargetGUID, out IPluginSubTargetMaterialUtils subTargetMaterialUtils);
+
+                    var wasUpgraded = false;
+                    var assetVersions = AssetDatabase.LoadAllAssetsAtPath(asset);
+                    AssetVersion assetVersion = null;
+                    foreach (var subAsset in assetVersions)
+                    {
+                        if (subAsset != null && subAsset.GetType() == typeof(AssetVersion))
+                        {
+                            assetVersion = subAsset as AssetVersion;
+                            break;
+                        }
+                    }
+
+                    //subasset not found
+                    if (!assetVersion)
+                    {
+                        wasUpgraded = true;
+                        assetVersion = ScriptableObject.CreateInstance<AssetVersion>();
+                        assetVersion.hideFlags = HideFlags.HideInHierarchy | HideFlags.HideInInspector | HideFlags.NotEditable;
+                        if (s_CreatedAssets.Contains(asset))
+                        {
+                            //just created
+                            s_CreatedAssets.Remove(asset);
+                            assetVersion.version = latestVersion;
+                            if (isMaterialUsingPlugin)
+                            {
+                                assetVersion.hdPluginSubTargetMaterialVersions.Add(subTargetGUID, subTargetMaterialUtils.latestMaterialVersion);
+                            }
+
+                            //[TODO: remove comment once fixed]
+                            //due to FB 1175514, this not work. It is being fixed though.
+                            //delayed call of the following work in some case and cause infinite loop in other cases.
+                            AssetDatabase.AddObjectToAsset(assetVersion, asset);
+
+                            // Init material in case it's used before an inspector window is opened
+                            HDShaderUtils.ResetMaterialKeywords(material);
+                        }
+                        else
+                        {
+                            //asset exist prior migration
+                            assetVersion.version = 0;
+                            if (isMaterialUsingPlugin)
+                            {
+                                assetVersion.hdPluginSubTargetMaterialVersions.Add(subTargetGUID, (int)(PluginMaterial.GenericVersions.NeverMigrated));
+                            }
+                            AssetDatabase.AddObjectToAsset(assetVersion, asset);
+                        }
+                    }
+                    // TODO: Maybe systematically remove from s_CreateAssets just in case
+
+                    //upgrade
+                    while (assetVersion.version >= 0 && assetVersion.version < latestVersion)
+                    {
+                        k_Migrations[assetVersion.version](material, id);
+                        assetVersion.version++;
+                        wasUpgraded = true;
+                    }
+
+                    if (isMaterialUsingPlugin)
+                    {
+                        int hdPluginMaterialVersion = (int)(PluginMaterial.GenericVersions.NeverMigrated);
+                        bool neverMigrated = (assetVersion.hdPluginSubTargetMaterialVersions.Count == 0)
+                            || (false == assetVersion.hdPluginSubTargetMaterialVersions.TryGetValue(subTargetGUID, out hdPluginMaterialVersion));
+                        if (neverMigrated)
+                        {
+                            assetVersion.hdPluginSubTargetMaterialVersions.Add(subTargetGUID, hdPluginMaterialVersion);
+                        }
+
+                        if (hdPluginMaterialVersion < subTargetMaterialUtils.latestMaterialVersion)
+                        {
+                            if (subTargetMaterialUtils.MigrateMaterial(material, hdPluginMaterialVersion))
+                            {
+                                assetVersion.hdPluginSubTargetMaterialVersions[subTargetGUID] = subTargetMaterialUtils.latestMaterialVersion;
+                                wasUpgraded = true;
+                            }
+                        }
+                    }
+
+                    if (wasUpgraded)
+                    {
+                        EditorUtility.SetDirty(assetVersion);
                         s_ImportedAssetThatNeedSaving.Add(asset);
                         s_NeedsSavingAssets = true;
                     }
-                    else
-                    {
-                        s_CreatedAssets.Remove(asset);
-                    }
-                    continue;
-                }
-                else if (!asset.EndsWith(".mat", StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                // Materials (.mat) post processing
-                var material = (Material)AssetDatabase.LoadAssetAtPath(asset, typeof(Material));
-                if (material == null)
-                    continue;
-
-                // Register Diffuse Profiles
-                if (HDRenderPipelineGlobalSettings.instance?.autoRegisterDiffusionProfiles == true)
-                    RegisterReferencedDiffusionProfiles(material);
-
-                if (MaterialReimporter.s_ReimportShaderGraphDependencyOnMaterialUpdate && GraphUtil.IsShaderGraphAsset(material.shader))
-                {
-                    // Check first if the HDRP shadergraph assigned needs a migration:
-                    // Here ignoreNonHDRPShaderGraphs = false is useful to not ignore non HDRP ShaderGraphs as
-                    // the detection is based on the presence of the "HDMetaData" object and old HDRP ShaderGraphs don't have these,
-                    // so we can conservatively force a re-import of any ShaderGraphs. Unity might not have reimported such ShaderGraphs
-                    // based on declared source dependencies by the ShaderGraphImporter because these might have moved / changed
-                    // for old ones. We can cover these cases here.
-                    //
-                    // Note we could also check this dependency in ReimportAllMaterials but in case a user manually re-imports a material,
-                    // (ie the OnPostprocessAllAssets call here is not generated from ReimportAllMaterials())
-                    // we would miss re-importing that dependency.
-                    if (MaterialReimporter.CheckHDShaderGraphVersionsForUpgrade("", material.shader, ignoreNonHDRPShaderGraphs: false))
-                    {
-                        s_ImportedMaterialCounter.TryGetValue(asset, out var importCounter);
-                        s_ImportedMaterialCounter[asset] = ++importCounter;
-
-                        // CheckHDShaderGraphVersionsForUpgrade always return true if a ShaderGraph don't have an HDMetaData attached
-                        // we need a check to avoid importing the same assets over and over again.
-                        if (importCounter > 2)
-                            continue;
-
-                        var shaderPath = AssetDatabase.GetAssetPath(material.shader.GetInstanceID());
-                        AssetDatabase.ImportAsset(shaderPath);
-
-                        // Restart the material import instead of proceeding otherwise the shadergraph will be processed after
-                        // (the above ImportAsset(shaderPath) returns before the actual re-importing taking place).
-                        AssetDatabase.ImportAsset(asset);
-                        continue;
-                    }
-                }
-
-                if (!HDShaderUtils.IsHDRPShader(material.shader, upgradable: true))
-                    continue;
-
-                (ShaderID id, GUID subTargetGUID) = HDShaderUtils.GetShaderIDsFromShader(material.shader);
-                var latestVersion = k_Migrations.Length;
-
-                bool isMaterialUsingPlugin = HDShaderUtils.GetMaterialPluginSubTarget(subTargetGUID, out IPluginSubTargetMaterialUtils subTargetMaterialUtils);
-
-                var wasUpgraded = false;
-                var assetVersions = AssetDatabase.LoadAllAssetsAtPath(asset);
-                AssetVersion assetVersion = null;
-                foreach (var subAsset in assetVersions)
-                {
-                    if (subAsset != null && subAsset.GetType() == typeof(AssetVersion))
-                    {
-                        assetVersion = subAsset as AssetVersion;
-                        break;
-                    }
-                }
-
-                //subasset not found
-                if (!assetVersion)
-                {
-                    wasUpgraded = true;
-                    assetVersion = ScriptableObject.CreateInstance<AssetVersion>();
-                    assetVersion.hideFlags = HideFlags.HideInHierarchy | HideFlags.HideInInspector | HideFlags.NotEditable;
-                    if (s_CreatedAssets.Contains(asset))
-                    {
-                        //just created
-                        s_CreatedAssets.Remove(asset);
-                        assetVersion.version = latestVersion;
-                        if (isMaterialUsingPlugin)
-                        {
-                            assetVersion.hdPluginSubTargetMaterialVersions.Add(subTargetGUID, subTargetMaterialUtils.latestMaterialVersion);
-                        }
-
-                        //[TODO: remove comment once fixed]
-                        //due to FB 1175514, this not work. It is being fixed though.
-                        //delayed call of the following work in some case and cause infinite loop in other cases.
-                        AssetDatabase.AddObjectToAsset(assetVersion, asset);
-
-                        // Init material in case it's used before an inspector window is opened
-                        HDShaderUtils.ResetMaterialKeywords(material);
-                    }
-                    else
-                    {
-                        //asset exist prior migration
-                        assetVersion.version = 0;
-                        if (isMaterialUsingPlugin)
-                        {
-                            assetVersion.hdPluginSubTargetMaterialVersions.Add(subTargetGUID, (int)(PluginMaterial.GenericVersions.NeverMigrated));
-                        }
-                        AssetDatabase.AddObjectToAsset(assetVersion, asset);
-                    }
-                }
-                // TODO: Maybe systematically remove from s_CreateAssets just in case
-
-                //upgrade
-                while (assetVersion.version >= 0 && assetVersion.version < latestVersion)
-                {
-                    k_Migrations[assetVersion.version](material, id);
-                    assetVersion.version++;
-                    wasUpgraded = true;
-                }
-
-                if (isMaterialUsingPlugin)
-                {
-                    int hdPluginMaterialVersion = (int)(PluginMaterial.GenericVersions.NeverMigrated);
-                    bool neverMigrated = (assetVersion.hdPluginSubTargetMaterialVersions.Count == 0)
-                        || (false == assetVersion.hdPluginSubTargetMaterialVersions.TryGetValue(subTargetGUID, out hdPluginMaterialVersion));
-                    if (neverMigrated)
-                    {
-                        assetVersion.hdPluginSubTargetMaterialVersions.Add(subTargetGUID, hdPluginMaterialVersion);
-                    }
-
-                    if (hdPluginMaterialVersion < subTargetMaterialUtils.latestMaterialVersion)
-                    {
-                        if (subTargetMaterialUtils.MigrateMaterial(material, hdPluginMaterialVersion))
-                        {
-                            assetVersion.hdPluginSubTargetMaterialVersions[subTargetGUID] = subTargetMaterialUtils.latestMaterialVersion;
-                            wasUpgraded = true;
-                        }
-                    }
-                }
-
-                if (wasUpgraded)
-                {
-                    EditorUtility.SetDirty(assetVersion);
-                    s_ImportedAssetThatNeedSaving.Add(asset);
-                    s_NeedsSavingAssets = true;
                 }
             }
         }

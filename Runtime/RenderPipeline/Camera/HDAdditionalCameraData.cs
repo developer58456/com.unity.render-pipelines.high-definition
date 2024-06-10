@@ -278,6 +278,19 @@ namespace UnityEngine.Rendering.HighDefinition
             High
         }
 
+        /// <summary>
+        /// TAA Sharpen mode.
+        /// </summary>
+        public enum TAASharpenMode
+        {
+            /// <summary>Low quality.</summary>
+            LowQuality,
+            /// <summary>Sharpen with a separate pass after TAA.</summary>
+            PostSharpen,
+            /// <summary>Run a Contrast Adaptive Sharpening pass after TAA.</summary>
+            ContrastAdaptiveSharpening
+        }
+
         /// <summary>Clear mode for the camera background.</summary>
         public ClearColorMode clearColorMode = ClearColorMode.Sky;
         /// <summary>HDR color used for clearing the camera background.</summary>
@@ -308,6 +321,13 @@ namespace UnityEngine.Rendering.HighDefinition
 
         /// <summary>Quality of the anti-aliasing when using TAA.</summary>
         public TAAQualityLevel TAAQuality = TAAQualityLevel.Medium;
+
+        /// <summary>How is the sharpening run sharpening.</summary>
+        public TAASharpenMode taaSharpenMode = TAASharpenMode.LowQuality;
+
+        /// <summary>How much to reduce the ringing from the TAA post-process sharpening. Note that some ringing might be visually desirable and that any value different than 0 will incur into a small additional cost.</summary>
+        [Range(0, 1)]
+        public float taaRingingReduction = 0.0f;
 
         /// <summary>Strength of the sharpening of the history sampled for TAA.</summary>
         [Range(0, 1)]
@@ -398,9 +418,46 @@ namespace UnityEngine.Rendering.HighDefinition
         [Range(0, 1)]
         public float deepLearningSuperSamplingSharpening = 0;
 
+        /// <summary>Allow FidelityFX Super Resolution (FSR2) on this camera.</summary>
+        [Tooltip("Allow FidelityFX Super Resolution (FSR2) on this camera.")]
+        public bool allowFidelityFX2SuperResolution = true;
+
+        /// <summary>If set to true, AMD FidelityFX 2.0 Super Resolution (FSR2) will utilize the Quality setting set on this camera instead of the one specified in the quality asset.</summary>
+        [Tooltip("If set to true, AMD FidelityFX 2.0 Super Resolution (FSR2) will utilize the Quality setting set on this camera instead of the one specified in the quality asset.")]
+        public bool fidelityFX2SuperResolutionUseCustomQualitySettings = false;
+
+        /// <summary>Selects a performance quality setting for AMD FidelityFX 2.0 Super Resolution (FSR2) for this camera of this project.</summary>
+        [Tooltip("Selects a performance quality setting for AMD FidelityFX 2.0 Super Resolution (FSR2) for this camera of this project.")]
+        public uint fidelityFX2SuperResolutionQuality = 0;
+
+        /// <summary>If set to true, AMD FidelityFX 2.0 Super Resolution (FSR2) will utilize the attributes (Optimal Settings and Sharpness) specified on this camera instead of the ones specified in the quality asset of this project.</summary>
+        [Tooltip("If set to true, AMD FidelityFX 2.0 Super Resolution (FSR2) will utilize the attributes (Optimal Settings and Sharpness) specified on this camera, instead of the ones specified in the quality asset of this project.")]
+        public bool fidelityFX2SuperResolutionUseCustomAttributes = false;
+
+        /// <summary>Sets the scale automatically for AMD FidelityFX 2.0 Super Resolution (FSR2) for this camera, depending on the values of quality settings.</summary>
+        [Tooltip("Sets the scale automatically for AMD FidelityFX 2.0 Super Resolution (FSR2) for this camera, depending on the values of quality settings.")]
+        public bool fidelityFX2SuperResolutionUseOptimalSettings = true;
+
+        /// <summary>Enables the Sharpening pass for AMD FidelityFX 2.0 Super Resolution (FSR2) for this camera.</summary>
+        [Tooltip("Enables the Sharpening pass for AMD FidelityFX 2.0 Super Resolution (FSR2) for this camera.")]
+        public bool fidelityFX2SuperResolutionEnableSharpening = false;
+
+        /// <summary>Sets the Sharpening value for AMD FidelityFX 2.0 Super Resolution (FSR2) for this camera.</summary>
+        [Tooltip("Sets the Sharpening value for AMD FidelityFX 2.0 Super Resolution (FSR2) for this camera.")]
+        [Range(0, 1)]
+        public float fidelityFX2SuperResolutionSharpening = 0;
+
         /// internal state set by the runtime wether DLSS is enabled or not on this camera, depending on the results of all other settings.
         [ExcludeCopy]
         internal bool cameraCanRenderDLSS = false;
+
+        /// internal state set by the runtime whether FSR2 is enabled or not on this camera, depending on the results of all other settings.
+        [ExcludeCopy]
+        internal bool cameraCanRenderFSR2 = false;
+
+        /// internal state set by the runtime whether STP is enabled or not on this camera, depending on the results of all other settings.
+        [ExcludeCopy]
+        internal bool cameraCanRenderSTP = false;
 
         /// <summary>If set to true, AMD FidelityFX Super Resolution (FSR) will utilize the sharpness setting set on this camera instead of the one specified in the quality asset.</summary>
         [Tooltip("If set to true, AMD FidelityFX Super Resolution (FSR) will utilize the sharpness setting set on this camera instead of the one specified in the quality asset.")]
@@ -435,7 +492,7 @@ namespace UnityEngine.Rendering.HighDefinition
         internal float deExposureMultiplier = 1.0f;
 
         [SerializeField, FormerlySerializedAs("renderingPathCustomFrameSettings")]
-        FrameSettings m_RenderingPathCustomFrameSettings = FrameSettings.NewDefaultCamera();
+        FrameSettings m_RenderingPathCustomFrameSettings = FrameSettingsDefaults.Get(FrameSettingsRenderType.Camera);
 
         /// <summary>Mask specifying which frame settings are overridden when using custom frame settings.</summary>
         public FrameSettingsOverrideMask renderingPathCustomFrameSettingsOverrideMask;
@@ -613,6 +670,8 @@ namespace UnityEngine.Rendering.HighDefinition
             data.stopNaNs = stopNaNs;
             data.taaSharpenStrength = taaSharpenStrength;
             data.TAAQuality = TAAQuality;
+            data.taaSharpenMode = taaSharpenMode;
+            data.taaRingingReduction = taaRingingReduction;
             data.taaHistorySharpening = taaHistorySharpening;
             data.taaAntiFlicker = taaAntiFlicker;
             data.taaMotionVectorRejection = taaMotionVectorRejection;
@@ -643,6 +702,13 @@ namespace UnityEngine.Rendering.HighDefinition
             data.deepLearningSuperSamplingUseOptimalSettings = deepLearningSuperSamplingUseOptimalSettings;
             data.deepLearningSuperSamplingSharpening = deepLearningSuperSamplingSharpening;
 
+            data.allowFidelityFX2SuperResolution = allowFidelityFX2SuperResolution;
+            data.fidelityFX2SuperResolutionUseCustomQualitySettings = fidelityFX2SuperResolutionUseCustomQualitySettings;
+            data.fidelityFX2SuperResolutionQuality = fidelityFX2SuperResolutionQuality;
+            data.fidelityFX2SuperResolutionUseCustomAttributes = fidelityFX2SuperResolutionUseCustomAttributes;
+            data.fidelityFX2SuperResolutionUseOptimalSettings = fidelityFX2SuperResolutionUseOptimalSettings;
+            data.fidelityFX2SuperResolutionEnableSharpening = fidelityFX2SuperResolutionEnableSharpening;
+            data.fidelityFX2SuperResolutionSharpening = fidelityFX2SuperResolutionSharpening;
             data.fsrOverrideSharpness = fsrOverrideSharpness;
             data.fsrSharpness = fsrSharpness;
 
@@ -708,6 +774,9 @@ namespace UnityEngine.Rendering.HighDefinition
 
         void OnEnable()
         {
+            if(GraphicsSettings.currentRenderPipelineAssetType != typeof(HDRenderPipelineAsset))
+                return;
+
             // Be sure legacy HDR option is disable on camera as it cause banding in SceneView. Yes, it is a contradiction, but well, Unity...
             // When HDR option is enabled, Unity render in FP16 then convert to 8bit with a stretch copy (this cause banding as it should be convert to sRGB (or other color appropriate color space)), then do a final shader with sRGB conversion
             // When LDR, unity render in 8bitSRGB, then do a final shader with sRGB conversion
@@ -721,8 +790,9 @@ namespace UnityEngine.Rendering.HighDefinition
 
             // By doing that, we force the update of frame settings debug data once. Otherwise, when the Rendering Debugger is opened,
             // Wrong data is registered to the undo system because it did not get the chance to be updated once.
-            FrameSettings dummy = new FrameSettings();
-            FrameSettingsHistory.AggregateFrameSettings(ref dummy, m_Camera, this, HDRenderPipeline.currentAsset, null);
+            FrameSettings dummy = new FrameSettings(); //don't require full init as will be fully reset in AggregateFrameSettings
+            if (GraphicsSettings.TryGetRenderPipelineSettings<RenderingPathFrameSettings>(out var renderingPathFrameSettings))
+                FrameSettingsHistory.AggregateFrameSettings(renderingPathFrameSettings, ref dummy, m_Camera, this, HDRenderPipeline.currentAsset, null);
 
             RegisterDebug();
 

@@ -10,6 +10,7 @@ using UnityEngine.Rendering;
 using UnityEditor.Rendering.HighDefinition.ShaderGraph;
 using UnityEditor.ShaderGraph.Legacy;
 using ShaderPass = UnityEditor.ShaderGraph.PassDescriptor;
+using DoubleSidedGIMode = UnityEngine.Rendering.HighDefinition.DoubleSidedGIMode;
 
 // Include material common properties names
 using static UnityEngine.Rendering.HighDefinition.HDMaterialProperties;
@@ -120,24 +121,24 @@ namespace UnityEditor.Rendering.HighDefinition
             }
 
             bool excludeFromTUAndAA = systemData?.excludeFromTUAndAA ?? false;
-            collector.AddToggleProperty(kExcludeFromTUAndAA, excludeFromTUAndAA); 
+            collector.AddToggleProperty(kExcludeFromTUAndAA, excludeFromTUAndAA);
 
             // Configure render state
             BaseLitAPI.ComputeStencilProperties(
-                    receivesLighting,
-                    forwardOnly,
-                    ssrStencil,
-                    splitLighting,
-                    excludeFromTUAndAA,
-                    out int stencilRef,
-                    out int stencilWriteMask,
-                    out int stencilRefDepth,
-                    out int stencilWriteMaskDepth,
-                    out int stencilRefGBuffer,
-                    out int stencilWriteMaskGBuffer,
-                    out int stencilRefMV,
-                    out int stencilWriteMaskMV
-            );
+                receivesLighting,
+                forwardOnly,
+                ssrStencil,
+                splitLighting,
+                false,
+                excludeFromTUAndAA,
+                out int stencilRef,
+                out int stencilWriteMask,
+                out int stencilRefDepth,
+                out int stencilWriteMaskDepth,
+                out int stencilRefGBuffer,
+                out int stencilWriteMaskGBuffer,
+                out int stencilRefMV,
+                out int stencilWriteMaskMV);
 
             // All these properties values will be patched with the material keyword update
             collector.AddIntProperty("_StencilRef", stencilRef);
@@ -161,17 +162,18 @@ namespace UnityEditor.Rendering.HighDefinition
         }
 
         public static void AddBlendingStatesShaderProperties(
-            PropertyCollector collector, SurfaceType surface, BlendMode blend, int sortingPriority,
+            PropertyCollector collector, SurfaceType surface, BlendingMode blending, int sortingPriority,
             bool transparentZWrite, TransparentCullMode transparentCullMode,
             OpaqueCullMode opaqueCullMode, CompareFunction zTest,
             bool backThenFrontRendering, bool fogOnTransparent, HDRenderQueue.RenderQueueType renderQueueType)
         {
             collector.AddFloatProperty("_SurfaceType", (int)surface);
-            collector.AddFloatProperty("_BlendMode", (int)blend, HLSLDeclaration.UnityPerMaterial);
+            collector.AddFloatProperty("_BlendMode", (int)blending, HLSLDeclaration.UnityPerMaterial);
 
             // All these properties values will be patched with the material keyword update
             collector.AddFloatProperty("_SrcBlend", 1.0f);
             collector.AddFloatProperty("_DstBlend", 0.0f);
+            collector.AddFloatProperty("_DstBlend2", 0.0f);
             collector.AddFloatProperty("_AlphaSrcBlend", 1.0f);
             collector.AddFloatProperty("_AlphaDstBlend", 0.0f);
             collector.AddToggleProperty(kZWrite, (surface == SurfaceType.Transparent) ? transparentZWrite : true);
@@ -353,10 +355,7 @@ namespace UnityEditor.Rendering.HighDefinition
 
         public static bool IsValidRenderingPassValue(HDRenderQueue.RenderQueueType value, bool needAfterPostProcess)
         {
-            if (!needAfterPostProcess && (value == HDRenderQueue.RenderQueueType.AfterPostProcessOpaque || value == HDRenderQueue.RenderQueueType.AfterPostprocessTransparent))
-                return false;
-
-            return true;
+            return needAfterPostProcess || (value != HDRenderQueue.RenderQueueType.AfterPostProcessOpaque && value != HDRenderQueue.RenderQueueType.AfterPostprocessTransparent);
         }
 
         public static bool UpgradeLegacyAlphaClip(IMasterNode1 masterNode)
@@ -371,18 +370,18 @@ namespace UnityEditor.Rendering.HighDefinition
             return (clipThresholdSlot.isConnected || clipThresholdSlot.value > 0.0f);
         }
 
-        public static BlendMode UpgradeLegacyAlphaModeToBlendMode(int alphaMode)
+        public static BlendingMode UpgradeLegacyAlphaModeToBlendMode(int alphaMode)
         {
             switch (alphaMode)
             {
                 case 0: //AlphaMode.Alpha:
-                    return BlendMode.Alpha;
+                    return BlendingMode.Alpha;
                 case 1: //AlphaMode.Premultiply:
-                    return BlendMode.Premultiply;
+                    return BlendingMode.Premultiply;
                 case 2: //AlphaMode.Additive:
-                    return BlendMode.Additive;
+                    return BlendingMode.Additive;
                 case 3: //AlphaMode.Multiply: // In case of multiply we fall back to Premultiply
-                    return BlendMode.Premultiply;
+                    return BlendingMode.Premultiply;
                 default:
                     throw new System.Exception("Unknown AlphaMode at index: " + alphaMode + ": can't convert to BlendMode.");
             }

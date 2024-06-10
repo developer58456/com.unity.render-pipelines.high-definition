@@ -1,14 +1,12 @@
 using System.Collections.Generic;
 using System.Linq;
-using UnityEditor.VFX.Block;
-using UnityEngine;
 
 namespace UnityEditor.VFX.HDRP
 {
-    [VFXInfo(experimental = true)]
+    [VFXInfo(name = "Output Particle|HDRP Lit|Cube", category = "#5Output Debug", experimental = true, synonyms = new []{ "Box" })]
     class VFXLitCubeOutput : VFXAbstractParticleHDRPLitOutput
     {
-        public override string name => "Output Particle HDRP Lit Cube";
+        public override string name => "Output Particle".AppendLabel("HDRP Lit", false) + "\nCube";
         public override string codeGeneratorTemplate => RenderPipeTemplate("VFXParticleLitCube");
         public override VFXTaskType taskType => VFXTaskType.ParticleHexahedronOutput;
         public override bool implementsMotionVector => true;
@@ -54,6 +52,7 @@ namespace UnityEditor.VFX.HDRP
 
                 yield return nameof(blendMode);
                 yield return nameof(shaderGraph);
+                yield return nameof(enableRayTracing);
             }
         }
 
@@ -67,6 +66,7 @@ namespace UnityEditor.VFX.HDRP
                 }
                 yield return nameof(blendMode);
                 yield return nameof(shaderGraph);
+                yield return nameof(enableRayTracing);
             }
         }
     }

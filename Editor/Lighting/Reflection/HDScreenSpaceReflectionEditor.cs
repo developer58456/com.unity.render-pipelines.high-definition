@@ -2,6 +2,8 @@ using UnityEngine;
 using UnityEngine.Rendering.HighDefinition;
 using UnityEngine.Rendering;
 
+using RayTracingMode = UnityEngine.Rendering.HighDefinition.RayTracingMode;
+
 namespace UnityEditor.Rendering.HighDefinition
 {
     [CanEditMultipleObjects]
@@ -40,7 +42,7 @@ namespace UnityEditor.Rendering.HighDefinition
         SerializedDataParameter m_ClampValue;
         SerializedDataParameter m_Denoise;
         SerializedDataParameter m_DenoiserRadius;
-        SerializedDataParameter m_AffectsSmoothSurfaces;
+        SerializedDataParameter m_DenoiserAntiFlickeringStrength;
         SerializedDataParameter m_Mode;
 
         // Mixed
@@ -90,7 +92,7 @@ namespace UnityEditor.Rendering.HighDefinition
             m_ClampValue = Unpack(o.Find(x => x.clampValue));
             m_Denoise = Unpack(o.Find(x => x.denoise));
             m_DenoiserRadius = Unpack(o.Find(x => x.denoiserRadius));
-            m_AffectsSmoothSurfaces = Unpack(o.Find(x => x.affectSmoothSurfaces));
+            m_DenoiserAntiFlickeringStrength = Unpack(o.Find(x => x.denoiserAntiFlickeringStrength));
             m_Mode = Unpack(o.Find(x => x.mode));
 
             // Mixed
@@ -114,7 +116,7 @@ namespace UnityEditor.Rendering.HighDefinition
         static public readonly GUIContent k_LayerMaskText = EditorGUIUtility.TrTextContent("Layer Mask", "Layer mask used to include the objects for ray traced reflections.");
         static public readonly GUIContent k_RayMissFallbackHierarchyText = EditorGUIUtility.TrTextContent("Ray Miss", "Controls the order in which fall backs are used when a ray misses.");
         static public readonly GUIContent k_LastBounceFallbackHierarchyText = EditorGUIUtility.TrTextContent("Last Bounce", "Controls the fallback hierarchy for lighting the last bounce.");
-        static public readonly GUIContent k_TextureLodBiasText = EditorGUIUtility.TrTextContent("Texture Lod Bias", "The LOD Bias HDRP applies to textures in the reflection. A higher value increases performance and makes denoising easier, but it might reduce visual fidelity.");
+        static public readonly GUIContent k_TextureLodBiasText = EditorGUIUtility.TrTextContent("Texture Lod Bias", "The LOD Bias that HDRP adds to texture sampling in the reflection. A higher value increases performance and makes denoising easier, but it might reduce visual fidelity.");
         static public readonly GUIContent k_MinimumSmoothnessText = EditorGUIUtility.TrTextContent("Minimum Smoothness", "Controls the smoothness value at which HDRP activates SSR and the smoothness-controlled fade out stops.");
         static public readonly GUIContent k_SmoothnessFadeStartText = EditorGUIUtility.TrTextContent("Smoothness Fade Start", "Controls the smoothness value at which the smoothness-controlled fade out starts. The fade is in the range [Min Smoothness, Smoothness Fade Start].");
         static public readonly GUIContent k_ScreenFaceDistanceText = EditorGUIUtility.TrTextContent("Screen Edge Fade Distance", "Controls the distance at which HDRP fades out SSR near the edge of the screen.");
@@ -136,7 +138,7 @@ namespace UnityEditor.Rendering.HighDefinition
         static public readonly GUIContent k_DenoiseText = EditorGUIUtility.TrTextContent("Denoise", "Enable denoising on the ray traced reflections.");
         static public readonly GUIContent k_FullResolutionText = EditorGUIUtility.TrTextContent("Full Resolution", "Enables full resolution mode.");
         static public readonly GUIContent k_DenoiseRadiusText = EditorGUIUtility.TrTextContent("Denoiser Radius", "Controls the radius of reflection denoiser.");
-        static public readonly GUIContent k_AffectsSmoothSurfacesText = EditorGUIUtility.TrTextContent("Affects Smooth Surfaces", "When enabled, the denoiser also affects perfectly smooth surfaces. When you use Quality mode with multiple bounces, the denoiser always affects smooth surfaces by default.");
+        static public readonly GUIContent k_DenoiserAntiFlickeringStrengthText = EditorGUIUtility.TrTextContent("Anti Flickering", "Controls the anti-flickering strength of reflection denoiser.");
         static public readonly GUIContent k_MaxMixedRaySteps = EditorGUIUtility.TrTextContent("Max Ray Steps", "Sets the maximum number of steps HDRP uses for mixed tracing.");
 
         void RayTracingQualityModeGUI()
@@ -147,14 +149,13 @@ namespace UnityEditor.Rendering.HighDefinition
                 PropertyField(m_SmoothnessFadeStart, k_SmoothnessFadeStartText);
                 m_SmoothnessFadeStart.value.floatValue = Mathf.Max(m_MinSmoothness.value.floatValue, m_SmoothnessFadeStart.value.floatValue);
                 PropertyField(m_RayLength, k_RayLengthText);
-                PropertyField(m_ClampValue, k_ClampValueText);
                 PropertyField(m_SampleCount, k_SampleCountText);
                 PropertyField(m_BounceCount, k_BounceCountText);
                 PropertyField(m_Denoise, k_DenoiseText);
                 using (new IndentLevelScope())
                 {
                     PropertyField(m_DenoiserRadius, k_DenoiseRadiusText);
-                    PropertyField(m_AffectsSmoothSurfaces, k_AffectsSmoothSurfacesText);
+                    PropertyField(m_DenoiserAntiFlickeringStrength, k_DenoiserAntiFlickeringStrengthText);
                 }
             }
         }
@@ -170,7 +171,6 @@ namespace UnityEditor.Rendering.HighDefinition
                 PropertyField(m_SmoothnessFadeStart, k_SmoothnessFadeStartText);
                 m_SmoothnessFadeStart.value.floatValue = Mathf.Max(m_MinSmoothness.value.floatValue, m_SmoothnessFadeStart.value.floatValue);
                 PropertyField(m_RayLength, k_RayLengthText);
-                PropertyField(m_ClampValue, k_ClampValueText);
                 PropertyField(m_FullResolution, k_FullResolutionText);
                 if (mixed)
                     PropertyField(m_RayMaxIterationsRT, k_MaxMixedRaySteps);
@@ -178,7 +178,7 @@ namespace UnityEditor.Rendering.HighDefinition
                 using (new IndentLevelScope())
                 {
                     PropertyField(m_DenoiserRadius, k_DenoiseRadiusText);
-                    PropertyField(m_AffectsSmoothSurfaces, k_AffectsSmoothSurfacesText);
+                    PropertyField(m_DenoiserAntiFlickeringStrength, k_DenoiserAntiFlickeringStrengthText);
                 }
             }
         }
@@ -203,6 +203,8 @@ namespace UnityEditor.Rendering.HighDefinition
 
             PropertyField(m_LayerMask, k_LayerMaskText);
             PropertyField(m_TextureLodBias, k_TextureLodBiasText);
+
+            PropertyField(m_ClampValue, k_ClampValueText);
 
             if (currentAsset.currentPlatformRenderPipelineSettings.supportedRayTracingMode == RenderPipelineSettings.SupportedRayTracingMode.Both)
             {
@@ -232,7 +234,7 @@ namespace UnityEditor.Rendering.HighDefinition
                     RayTracingQualityModeGUI();
                 else
                     HDEditorUtils.QualitySettingsHelpBox("The current HDRP Asset does not support the mixed mode which is only available in performance mode.", MessageType.Error,
-                        HDRenderPipelineUI.Expandable.Rendering, "m_RenderPipelineSettings.supportedRayTracingMode");
+                    HDRenderPipelineUI.ExpandableGroup.Rendering, "m_RenderPipelineSettings.supportedRayTracingMode");
             }
             else
             {
@@ -242,15 +244,16 @@ namespace UnityEditor.Rendering.HighDefinition
 
         public override void OnInspectorGUI()
         {
-            // This whole editor has nothing to display if the SSR feature is not supported
             HDRenderPipelineAsset currentAsset = HDRenderPipeline.currentAsset;
-            if (!currentAsset?.currentPlatformRenderPipelineSettings.supportSSR ?? false)
+            bool notSupported = currentAsset != null && !currentAsset.currentPlatformRenderPipelineSettings.supportSSR;
+            if (notSupported)
             {
                 EditorGUILayout.Space();
-                HDEditorUtils.QualitySettingsHelpBox("The current HDRP Asset does not support Screen Space Reflection.", MessageType.Error,
-                    HDRenderPipelineUI.Expandable.Reflection, "m_RenderPipelineSettings.supportSSR");
-                return;
+                HDEditorUtils.QualitySettingsHelpBox("The current HDRP Asset does not support Screen Space Reflection.", MessageType.Warning,
+                    HDRenderPipelineUI.ExpandableGroup.Lighting,
+                    HDRenderPipelineUI.ExpandableLighting.Reflection, "m_RenderPipelineSettings.supportSSR");
             }
+            using var disableScope = new EditorGUI.DisabledScope(notSupported);
 
             PropertyField(m_Enable, k_EnabledOpaque);
 
@@ -266,12 +269,12 @@ namespace UnityEditor.Rendering.HighDefinition
                 if (!currentAsset.currentPlatformRenderPipelineSettings.supportSSRTransparent)
                 {
                     HDEditorUtils.QualitySettingsHelpBox("The current HDRP Asset does not support Transparent Screen Space Reflection.", MessageType.Info,
-                        HDRenderPipelineUI.Expandable.Reflection, "m_RenderPipelineSettings.supportSSRTransparent");
+                        HDRenderPipelineUI.ExpandableGroup.Lighting, HDRenderPipelineUI.ExpandableLighting.Reflection, "m_RenderPipelineSettings.supportSSRTransparent");
                 }
                 else
                 {
                     HDEditorUtils.QualitySettingsHelpBox("The current HDRP Asset does not support Transparent Depth Prepass.\nIt is required for Transparent Screen Space Reflection.", MessageType.Info,
-                        HDRenderPipelineUI.Expandable.Rendering, "m_RenderPipelineSettings.supportTransparentDepthPrepass");
+                        HDRenderPipelineUI.ExpandableGroup.Rendering, "m_RenderPipelineSettings.supportTransparentDepthPrepass");
                 }
             }
 
@@ -352,8 +355,8 @@ namespace UnityEditor.Rendering.HighDefinition
             settings.Save<bool>(m_FullResolution);
             settings.Save<bool>(m_RayMaxIterationsRT);
             settings.Save<bool>(m_Denoise);
-            settings.Save<int>(m_DenoiserRadius);
-            settings.Save<bool>(m_AffectsSmoothSurfaces);
+            settings.Save<float>(m_DenoiserRadius);
+            settings.Save<float>(m_DenoiserAntiFlickeringStrength);
             // SSR
             settings.Save<int>(m_RayMaxIterations);
 
@@ -373,8 +376,8 @@ namespace UnityEditor.Rendering.HighDefinition
                 settings.TryLoad<bool>(ref m_FullResolution);
                 settings.TryLoad<bool>(ref m_RayMaxIterationsRT);
                 settings.TryLoad<bool>(ref m_Denoise);
-                settings.TryLoad<int>(ref m_DenoiserRadius);
-                settings.TryLoad<bool>(ref m_AffectsSmoothSurfaces);
+                settings.TryLoad<float>(ref m_DenoiserRadius);
+                settings.TryLoad<float>(ref m_DenoiserAntiFlickeringStrength);
             }
             // SSR
             else
@@ -390,12 +393,11 @@ namespace UnityEditor.Rendering.HighDefinition
                 CopySetting(ref m_MinSmoothness, settings.lightingQualitySettings.RTRMinSmoothness[level]);
                 CopySetting(ref m_SmoothnessFadeStart, settings.lightingQualitySettings.RTRSmoothnessFadeStart[level]);
                 CopySetting(ref m_RayLength, settings.lightingQualitySettings.RTRRayLength[level]);
-                CopySetting(ref m_ClampValue, settings.lightingQualitySettings.RTRClampValue[level]);
                 CopySetting(ref m_FullResolution, settings.lightingQualitySettings.RTRFullResolution[level]);
                 CopySetting(ref m_RayMaxIterationsRT, settings.lightingQualitySettings.RTRRayMaxIterations[level]);
                 CopySetting(ref m_Denoise, settings.lightingQualitySettings.RTRDenoise[level]);
-                CopySetting(ref m_DenoiserRadius, settings.lightingQualitySettings.RTRDenoiserRadius[level]);
-                CopySetting(ref m_AffectsSmoothSurfaces, settings.lightingQualitySettings.RTRSmoothDenoising[level]);
+                CopySetting(ref m_DenoiserRadius, settings.lightingQualitySettings.RTRDenoiserRadiusDimmer[level]);
+                CopySetting(ref m_DenoiserAntiFlickeringStrength, settings.lightingQualitySettings.RTRDenoiserAntiFlicker[level]);
             }
             // SSR
             else

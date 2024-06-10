@@ -2,10 +2,14 @@ using System;
 using System.Collections.Generic;
 using UnityEngine.Experimental.Rendering;
 
+using ShadingSource = UnityEngine.Rendering.HighDefinition.HDAdditionalLightData.CelestialBodyShadingSource;
+
 namespace UnityEngine.Rendering.HighDefinition
 {
     class PhysicallyBasedSkyRenderer : SkyRenderer
     {
+        static bool SupportSpace => ShaderConfig.s_PrecomputedAtmosphericAttenuation == 0;
+
         class PrecomputationCache
         {
             class RefCountedData
@@ -16,6 +20,8 @@ namespace UnityEngine.Rendering.HighDefinition
 
             ObjectPool<RefCountedData> m_DataPool = new ObjectPool<RefCountedData>(null, null);
             Dictionary<int, RefCountedData> m_CachedData = new Dictionary<int, RefCountedData>();
+
+            public bool HasAliveData() => m_CachedData.Count != 0;
 
             public PrecomputationData Get(BuiltinSkyParameters builtinParams, int hash)
             {
@@ -52,8 +58,17 @@ namespace UnityEngine.Rendering.HighDefinition
 
         class PrecomputationData
         {
-            RTHandle m_GroundIrradianceTable, m_MultiScatteringLut;
+            // Local sky
+            RTHandle m_GroundIrradianceTable;
             RTHandle[] m_InScatteredRadianceTables; // Air SS, Aerosol SS, Atmosphere MS
+
+            // Distant sky
+            RTHandle m_MultiScatteringLut, m_SkyViewLut;
+            int m_LastLightsHash;
+
+            RTHandle m_AtmosphericScatteringLut;
+
+            bool IsWorldSpace() => m_InScatteredRadianceTables != null;
 
             RTHandle AllocateGroundIrradianceTable()
             {
@@ -99,14 +114,43 @@ namespace UnityEngine.Rendering.HighDefinition
 
                 RenderMultiScatteringLut(cmd);
 
-                m_GroundIrradianceTable = AllocateGroundIrradianceTable();
+                if (!SupportSpace && builtinParams.hdCamera.planet.renderingSpace == RenderingSpace.Camera)
+                {
+                    m_LastLightsHash = -1;
 
-                m_InScatteredRadianceTables = new RTHandle[3];
-                m_InScatteredRadianceTables[0] = AllocateInScatteredRadianceTable(0);
-                m_InScatteredRadianceTables[1] = AllocateInScatteredRadianceTable(1);
-                m_InScatteredRadianceTables[2] = AllocateInScatteredRadianceTable(2);
+                    m_SkyViewLut = RTHandles.Alloc(
+                        (int)PbrSkyConfig.SkyViewLutWidth,
+                        (int)PbrSkyConfig.SkyViewLutHeight,
+                        colorFormat: s_ColorFormat,
+                        filterMode: FilterMode.Bilinear,
+                        wrapModeU: TextureWrapMode.Repeat,
+                        wrapModeV: TextureWrapMode.Clamp,
+                        enableRandomWrite: true,
+                        name: "SkyViewLUT");
+                }
+                else
+                {
+                    m_GroundIrradianceTable = AllocateGroundIrradianceTable();
 
-                PrecomputeTables(cmd);
+                    m_InScatteredRadianceTables = new RTHandle[3];
+                    m_InScatteredRadianceTables[0] = AllocateInScatteredRadianceTable(0);
+                    m_InScatteredRadianceTables[1] = AllocateInScatteredRadianceTable(1);
+                    m_InScatteredRadianceTables[2] = AllocateInScatteredRadianceTable(2);
+
+                    PrecomputeTables(cmd);
+                }
+
+                if (!SupportSpace && pbrSky.atmosphericScattering.value)
+                {
+                    m_AtmosphericScatteringLut = RTHandles.Alloc(
+                        (int)PbrSkyConfig.AtmosphericScatteringLutWidth,
+                        (int)PbrSkyConfig.AtmosphericScatteringLutHeight,
+                        (int)PbrSkyConfig.AtmosphericScatteringLutDepth,
+                        dimension: TextureDimension.Tex3D,
+                        colorFormat: s_ColorFormat,
+                        enableRandomWrite: true,
+                        name: "AtmosphericScatteringLUT");
+                }
             }
 
             public void Release()
@@ -116,13 +160,23 @@ namespace UnityEngine.Rendering.HighDefinition
                     RTHandles.Release(m_MultiScatteringLut); m_MultiScatteringLut = null;
                 }
 
-                RTHandles.Release(m_GroundIrradianceTable);
-                RTHandles.Release(m_InScatteredRadianceTables[0]);
-                RTHandles.Release(m_InScatteredRadianceTables[1]);
-                RTHandles.Release(m_InScatteredRadianceTables[2]);
+                if (IsWorldSpace())
+                {
+                    RTHandles.Release(m_GroundIrradianceTable); m_GroundIrradianceTable = null;
+                    RTHandles.Release(m_InScatteredRadianceTables[0]); m_InScatteredRadianceTables[0] = null;
+                    RTHandles.Release(m_InScatteredRadianceTables[1]); m_InScatteredRadianceTables[1] = null;
+                    RTHandles.Release(m_InScatteredRadianceTables[2]); m_InScatteredRadianceTables[2] = null;
+                    m_InScatteredRadianceTables = null;
+                }
+                else
+                {
+                    RTHandles.Release(m_SkyViewLut); m_SkyViewLut = null;
+                }
 
-                m_GroundIrradianceTable = null;
-                m_InScatteredRadianceTables = null;
+                if (m_AtmosphericScatteringLut != null)
+                {
+                    RTHandles.Release(m_AtmosphericScatteringLut); m_AtmosphericScatteringLut = null;
+                }
             }
 
             void RenderMultiScatteringLut(CommandBuffer cmd)
@@ -162,16 +216,86 @@ namespace UnityEngine.Rendering.HighDefinition
                 }
             }
 
+            static internal float CastFloat(float value, int size)
+            {
+                return (int)(value * size) / (float)size;
+            }
+
+            // Computes hash code of light parameters used during sky view lut precomputation
+            static int GetLightsHash()
+            {
+                int hash = 13;
+                for (int i = 0; i < s_CelestialLightCount; i++)
+                {
+                    ref var data = ref s_CelestialBodyData[i];
+                    hash = hash * 23 + data.forward.GetHashCode();
+                    hash = hash * 23 + data.color.GetHashCode();
+                }
+                return hash;
+            }
+
+            internal void RenderSkyViewLut(CommandBuffer cmd)
+            {
+                int currLightsHash = GetLightsHash();
+                if (currLightsHash == m_LastLightsHash) return;
+                m_LastLightsHash = currLightsHash;
+
+                cmd.SetComputeTextureParam(s_SkyLUTGenerator, s_SkyViewKernel, HDShaderIDs._MultiScatteringLUT, m_MultiScatteringLut);
+                cmd.SetComputeTextureParam(s_SkyLUTGenerator, s_SkyViewKernel, HDShaderIDs._SkyViewLUT_RW, m_SkyViewLut);
+                cmd.SetComputeBufferParam(s_SkyLUTGenerator, s_SkyViewKernel, HDShaderIDs._CelestialBodyDatas, s_CelestialBodyBuffer);
+
+                cmd.DispatchCompute(s_SkyLUTGenerator, s_SkyViewKernel,
+                    (int)PbrSkyConfig.SkyViewLutWidth / 8,
+                    (int)PbrSkyConfig.SkyViewLutHeight / 8,
+                    1);
+            }
+
+            internal void RenderAtmosphericScatteringLut(BuiltinSkyParameters builtinParams)
+            {
+                var cmd = builtinParams.commandBuffer;
+                cmd.SetComputeMatrixParam(s_SkyLUTGenerator, HDShaderIDs._PixelCoordToViewDirWS, builtinParams.pixelCoordToViewDirMatrix);
+
+                int kernel = IsWorldSpace() ? s_AtmosphericScatteringKernelWorld : s_AtmosphericScatteringKernelCamera;
+
+                cmd.SetComputeTextureParam(s_SkyLUTGenerator, kernel, HDShaderIDs._MultiScatteringLUT, m_MultiScatteringLut);
+                cmd.SetComputeTextureParam(s_SkyLUTGenerator, kernel, HDShaderIDs._AtmosphericScatteringLUT_RW, m_AtmosphericScatteringLut);
+                cmd.SetComputeBufferParam(s_SkyLUTGenerator, kernel, HDShaderIDs._CelestialBodyDatas, s_CelestialBodyBuffer);
+
+                cmd.DispatchCompute(s_SkyLUTGenerator, kernel,
+                    (int)PbrSkyConfig.AtmosphericScatteringLutWidth,
+                    (int)PbrSkyConfig.AtmosphericScatteringLutHeight,
+                    1);
+            }
+
             public void BindGlobalBuffers(CommandBuffer cmd)
             {
+                cmd.SetGlobalBuffer(HDShaderIDs._CelestialBodyDatas, s_CelestialBodyBuffer);
+
+                if (SupportSpace)
+                {
+                    cmd.SetGlobalTexture(HDShaderIDs._AirSingleScatteringTexture, m_InScatteredRadianceTables[0]);
+                    cmd.SetGlobalTexture(HDShaderIDs._AerosolSingleScatteringTexture, m_InScatteredRadianceTables[1]);
+                    cmd.SetGlobalTexture(HDShaderIDs._MultipleScatteringTexture, m_InScatteredRadianceTables[2]);
+                }
+                else
+                {
+                    cmd.SetGlobalTexture(HDShaderIDs._AtmosphericScatteringLUT, m_AtmosphericScatteringLut ?? (RenderTargetIdentifier)CoreUtils.blackVolumeTexture);
+                }
             }
 
             public void BindBuffers(MaterialPropertyBlock mpb)
             {
-                mpb.SetTexture(HDShaderIDs._GroundIrradianceTexture, m_GroundIrradianceTable);
-                mpb.SetTexture(HDShaderIDs._AirSingleScatteringTexture, m_InScatteredRadianceTables[0]);
-                mpb.SetTexture(HDShaderIDs._AerosolSingleScatteringTexture, m_InScatteredRadianceTables[1]);
-                mpb.SetTexture(HDShaderIDs._MultipleScatteringTexture, m_InScatteredRadianceTables[2]);
+                if (IsWorldSpace())
+                {
+                    mpb.SetTexture(HDShaderIDs._GroundIrradianceTexture, m_GroundIrradianceTable);
+                    mpb.SetTexture(HDShaderIDs._AirSingleScatteringTexture, m_InScatteredRadianceTables[0]);
+                    mpb.SetTexture(HDShaderIDs._AerosolSingleScatteringTexture, m_InScatteredRadianceTables[1]);
+                    mpb.SetTexture(HDShaderIDs._MultipleScatteringTexture, m_InScatteredRadianceTables[2]);
+                }
+                else
+                {
+                    mpb.SetTexture(HDShaderIDs._SkyViewLUT, m_SkyViewLut);
+                }
             }
         }
 
@@ -185,38 +309,52 @@ namespace UnityEngine.Rendering.HighDefinition
         Material m_PbrSkyMaterial;
         static MaterialPropertyBlock s_PbrSkyMaterialProperties;
 
-        static PrecomputationCache s_PrecomputaionCache = new PrecomputationCache();
+        static PrecomputationCache s_PrecomputationCache = new PrecomputationCache();
+
+        const int k_MaxCelestialBodies = 16;
+        static GraphicsBuffer s_CelestialBodyBuffer;
+        static CelestialBodyData[] s_CelestialBodyData;
+        static int s_DataFrameUpdate = -1;
+        static uint s_CelestialLightCount;
+        static uint s_CelestialBodyCount;
+        static float s_CelestialLightExposure;
 
         ShaderVariablesPhysicallyBasedSky m_ConstantBuffer;
         int m_ShaderVariablesPhysicallyBasedSkyID = Shader.PropertyToID("ShaderVariablesPhysicallyBasedSky");
         static GraphicsFormat s_ColorFormat = GraphicsFormat.B10G11R11_UFloatPack32;
 
-        static ComputeShader s_SkyLUTGenerator;
-        static int s_MultiScatteringKernel;
-
+        // Resources for world space sky
         static ComputeShader s_GroundIrradiancePrecomputationCS;
         static ComputeShader s_InScatteredRadiancePrecomputationCS;
+        static int s_AtmosphericScatteringKernelWorld;
 
-        public PhysicallyBasedSkyRenderer()
-        {
-        }
+        // Resources for camera space sky
+        static ComputeShader s_SkyLUTGenerator;
+        static int s_MultiScatteringKernel, s_SkyViewKernel, s_AtmosphericScatteringKernelCamera;
 
         public override void Build()
         {
-            var hdrpResources = HDRenderPipelineGlobalSettings.instance.renderPipelineResources;
+            var shaders = GraphicsSettings.GetRenderPipelineSettings<HDRenderPipelineRuntimeShaders>();
             var hdPipeline = RenderPipelineManager.currentPipeline as HDRenderPipeline;
 
             if (hdPipeline != null)
                 s_ColorFormat = hdPipeline.GetColorBufferFormat();
 
-            // Shaders
-            s_SkyLUTGenerator = hdrpResources.shaders.skyLUTGenerator;
+            // Common
+            s_SkyLUTGenerator = shaders.skyLUTGenerator;
             s_MultiScatteringKernel = s_SkyLUTGenerator.FindKernel("MultiScatteringLUT");
 
-            s_GroundIrradiancePrecomputationCS = hdrpResources.shaders.groundIrradiancePrecomputationCS;
-            s_InScatteredRadiancePrecomputationCS = hdrpResources.shaders.inScatteredRadiancePrecomputationCS;
+            // Camera space sky
+            s_SkyViewKernel = s_SkyLUTGenerator.FindKernel("SkyViewLUT");
+            s_AtmosphericScatteringKernelCamera = s_SkyLUTGenerator.FindKernel("AtmosphericScatteringLUTCamera");
 
-            m_PbrSkyMaterial = CoreUtils.CreateEngineMaterial(hdrpResources.shaders.physicallyBasedSkyPS);
+            // World space sky
+            s_GroundIrradiancePrecomputationCS = shaders.groundIrradiancePrecomputationCS;
+            s_InScatteredRadiancePrecomputationCS = shaders.inScatteredRadiancePrecomputationCS;
+            s_AtmosphericScatteringKernelWorld = s_SkyLUTGenerator.FindKernel("AtmosphericScatteringLUTWorld");
+
+            // Main Shader
+            m_PbrSkyMaterial = CoreUtils.CreateEngineMaterial(shaders.physicallyBasedSkyPS);
             s_PbrSkyMaterialProperties = new MaterialPropertyBlock();
         }
 
@@ -227,15 +365,26 @@ namespace UnityEngine.Rendering.HighDefinition
                 m_PrecomputedData.BindGlobalBuffers(builtinParams.commandBuffer);
         }
 
+        public static void SetDefaultGlobalSkyData(CommandBuffer cmd)
+        {
+            cmd.SetGlobalTexture(HDShaderIDs._AtmosphericScatteringLUT, CoreUtils.blackVolumeTexture);
+        }
+
         public override void Cleanup()
         {
             if (m_PrecomputedData != null)
             {
-                s_PrecomputaionCache.Release(m_LastPrecomputationParamHash);
+                s_PrecomputationCache.Release(m_LastPrecomputationParamHash);
                 m_LastPrecomputationParamHash = 0;
                 m_PrecomputedData = null;
             }
             CoreUtils.Destroy(m_PbrSkyMaterial);
+
+            if (!s_PrecomputationCache.HasAliveData() && s_CelestialBodyBuffer != null)
+            {
+                s_CelestialBodyBuffer.Dispose();
+                s_CelestialBodyBuffer = null;
+            }
         }
 
         static float CornetteShanksPhasePartConstant(float anisotropy)
@@ -256,30 +405,72 @@ namespace UnityEngine.Rendering.HighDefinition
             return new Vector2(x, y);
         }
 
+        void UpdateCelestialBodyBuffer(CommandBuffer cmd, BuiltinSkyParameters builtinParams)
+        {
+            if (s_CelestialBodyBuffer == null)
+            {
+                int stride = System.Runtime.InteropServices.Marshal.SizeOf(typeof(CelestialBodyData));
+                s_CelestialBodyBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, k_MaxCelestialBodies, stride);
+                s_CelestialBodyData = new CelestialBodyData[k_MaxCelestialBodies];
+            }
+
+            if (builtinParams.frameIndex != s_DataFrameUpdate)
+            {
+                s_DataFrameUpdate = builtinParams.frameIndex;
+                var directionalLights = HDLightRenderDatabase.instance.directionalLights;
+
+                float exposure = 1.0f;
+
+                uint lightCount = 0;
+                foreach (var light in directionalLights)
+                {
+                    if (light.legacyLight.enabled && light.interactsWithSky && light.legacyLight.intensity != 0.0f)
+                    {
+                        FillCelestialBodyData(cmd, light, ref s_CelestialBodyData[lightCount++]);
+                        exposure = Mathf.Max(light.legacyLight.intensity * -light.transform.forward.y, exposure);
+                        if (lightCount >= k_MaxCelestialBodies) break;
+                    }
+                }
+
+                uint bodyCount = lightCount;
+                foreach (var light in directionalLights)
+                {
+                    if (bodyCount >= k_MaxCelestialBodies) break;
+                    if (light.legacyLight.enabled && light.interactsWithSky && light.legacyLight.intensity == 0.0f)
+                        FillCelestialBodyData(cmd, light, ref s_CelestialBodyData[bodyCount++]);
+                }
+
+                s_CelestialLightCount = lightCount;
+                s_CelestialBodyCount = bodyCount;
+                s_CelestialLightExposure = exposure;
+
+                s_CelestialBodyBuffer.SetData(s_CelestialBodyData);
+            }
+        }
+
         // For both precomputation and runtime lighting passes.
         void UpdateGlobalConstantBuffer(CommandBuffer cmd, BuiltinSkyParameters builtinParams)
         {
             var pbrSky = builtinParams.skySettings as PhysicallyBasedSky;
 
-            float R = pbrSky.GetPlanetaryRadius();
+            UpdateCelestialBodyBuffer(cmd, builtinParams);
+
+            float R = builtinParams.hdCamera.planet.radius;
             float D = pbrSky.GetMaximumAltitude();
             float airH = pbrSky.GetAirScaleHeight();
             float aerH = pbrSky.GetAerosolScaleHeight();
-            float aerA = pbrSky.GetAerosolAnisotropy();
+            float aerA = pbrSky.aerosolAnisotropy.value;
+            float ozoS = pbrSky.GetOzoneLayerMinimumAltitude();
+            float ozoW = pbrSky.GetOzoneLayerWidth();
             float iMul = GetSkyIntensity(pbrSky, builtinParams.debugSettings);
 
             Vector2 expParams = ComputeExponentialInterpolationParams(pbrSky.horizonZenithShift.value);
 
-            m_ConstantBuffer._PlanetaryRadius = R;
-            m_ConstantBuffer._RcpPlanetaryRadius = 1.0f / R;
             m_ConstantBuffer._AtmosphericDepth = D;
             m_ConstantBuffer._RcpAtmosphericDepth = 1.0f / D;
-
             m_ConstantBuffer._AtmosphericRadius = R + D;
             m_ConstantBuffer._AerosolAnisotropy = aerA;
             m_ConstantBuffer._AerosolPhasePartConstant = CornetteShanksPhasePartConstant(aerA);
-            m_ConstantBuffer._Unused = 0.0f; // Warning fix
-            m_ConstantBuffer._Unused2 = 0.0f; // Warning fix
 
             m_ConstantBuffer._AirDensityFalloff = 1.0f / airH;
             m_ConstantBuffer._AirScaleHeight = airH;
@@ -295,11 +486,15 @@ namespace UnityEngine.Rendering.HighDefinition
             m_ConstantBuffer._AerosolSeaLevelScattering = pbrSky.GetAerosolScatteringCoefficient();
             m_ConstantBuffer._ColorSaturation = pbrSky.colorSaturation.value;
 
-            Vector3 groundAlbedo = new Vector3(pbrSky.groundTint.value.r, pbrSky.groundTint.value.g, pbrSky.groundTint.value.b);
-            m_ConstantBuffer._GroundAlbedo = groundAlbedo;
+            m_ConstantBuffer._OzoneSeaLevelExtinction = pbrSky.GetOzoneExtinctionCoefficient();
+            m_ConstantBuffer._OzoneScaleOffset = new Vector2(2.0f / ozoW, -2.0f * ozoS / ozoW - 1.0f);
+            m_ConstantBuffer._OzoneLayerStart = R + ozoS;
+            m_ConstantBuffer._OzoneLayerEnd = R + ozoS + ozoW;
+
+            m_ConstantBuffer._GroundAlbedo_PlanetRadius = pbrSky.groundTint.value;
+            m_ConstantBuffer._GroundAlbedo_PlanetRadius.w = R;
             m_ConstantBuffer._AlphaSaturation = pbrSky.alphaSaturation.value;
 
-            m_ConstantBuffer._PlanetCenterPosition = pbrSky.GetPlanetCenterPosition(builtinParams.worldSpaceCameraPos);
             m_ConstantBuffer._AlphaMultiplier = pbrSky.alphaMultiplier.value;
 
             Vector3 horizonTint = new Vector3(pbrSky.horizonTint.value.r, pbrSky.horizonTint.value.g, pbrSky.horizonTint.value.b);
@@ -310,6 +505,10 @@ namespace UnityEngine.Rendering.HighDefinition
             m_ConstantBuffer._ZenithTint = zenithTint;
             m_ConstantBuffer._HorizonZenithShiftScale = expParams.y;
 
+            m_ConstantBuffer._CelestialLightCount = s_CelestialLightCount;
+            m_ConstantBuffer._CelestialBodyCount = s_CelestialBodyCount;
+            m_ConstantBuffer._CelestialLightExposure = s_CelestialLightExposure;
+
             ConstantBuffer.PushGlobal(cmd, m_ConstantBuffer, m_ShaderVariablesPhysicallyBasedSkyID);
         }
 
@@ -318,93 +517,186 @@ namespace UnityEngine.Rendering.HighDefinition
             UpdateGlobalConstantBuffer(builtinParams.commandBuffer, builtinParams);
             var pbrSky = builtinParams.skySettings as PhysicallyBasedSky;
 
-            int currPrecomputationParamHash = pbrSky.GetPrecomputationHashCode();
+            int currPrecomputationParamHash = pbrSky.GetPrecomputationHashCode(builtinParams.hdCamera);
             if (currPrecomputationParamHash != m_LastPrecomputationParamHash)
             {
                 if (m_LastPrecomputationParamHash != 0)
-                    s_PrecomputaionCache.Release(m_LastPrecomputationParamHash);
-                m_PrecomputedData = s_PrecomputaionCache.Get(builtinParams, currPrecomputationParamHash);
+                    s_PrecomputationCache.Release(m_LastPrecomputationParamHash);
+                m_PrecomputedData = s_PrecomputationCache.Get(builtinParams, currPrecomputationParamHash);
                 m_LastPrecomputationParamHash = currPrecomputationParamHash;
             }
 
             return false;
         }
 
-        // 'renderSunDisk' parameter is not supported.
-        // Users should instead create an emissive (or lit) mesh for every relevant light source
-        // (to support multiple stars in space, moons with moon phases, etc).
         public override void RenderSky(BuiltinSkyParameters builtinParams, bool renderForCubemap, bool renderSunDisk)
         {
             var pbrSky = builtinParams.skySettings as PhysicallyBasedSky;
+            var renderingSpace = SupportSpace ? RenderingSpace.World : builtinParams.hdCamera.planet.renderingSpace;
+
+            if (renderingSpace == RenderingSpace.Camera)
+                m_PrecomputedData.RenderSkyViewLut(builtinParams.commandBuffer);
+            if (!SupportSpace && pbrSky.atmosphericScattering.value && !renderForCubemap) // TODO: include fog & scattering in cubemaps
+                m_PrecomputedData.RenderAtmosphericScatteringLut(builtinParams);
 
             m_PrecomputedData.BindGlobalBuffers(builtinParams.commandBuffer);
             m_PrecomputedData.BindBuffers(s_PbrSkyMaterialProperties);
 
-            // TODO: the following expression is somewhat inefficient, but good enough for now.
-            Vector3 cameraPos = builtinParams.worldSpaceCameraPos;
-            Vector3 planetCenter = pbrSky.GetPlanetCenterPosition(cameraPos);
-            float R = pbrSky.GetPlanetaryRadius();
-
-            Vector3 cameraToPlanetCenter = planetCenter - cameraPos;
-            float r = cameraToPlanetCenter.magnitude;
-            cameraPos = planetCenter - Mathf.Max(R, r) * cameraToPlanetCenter.normalized;
+            Unity.Mathematics.float4 upAltitude = HDRenderPipeline.currentPipeline.GetShaderVariablesGlobalCB()._PlanetUpAltitude;
+            Vector3 cameraPosPS = builtinParams.worldSpaceCameraPos - builtinParams.hdCamera.planet.center;
+            if (upAltitude.w < 1.0f) // Ensure camera is not below the ground
+                cameraPosPS -= (upAltitude.w - 1.0f) * (Vector3)upAltitude.xyz;
 
             bool simpleEarthMode = pbrSky.type.value == PhysicallyBasedSkyModel.EarthSimple;
+            bool customMaterial = pbrSky.renderingMode.value == PhysicallyBasedSky.RenderingMode.Material && pbrSky.material.value != null;
+            var material = customMaterial ? pbrSky.material.value : m_PbrSkyMaterial;
 
-            // Precomputation is done, shading is next.
-            Quaternion planetRotation = Quaternion.Euler(pbrSky.planetRotation.value.x,
-                pbrSky.planetRotation.value.y,
-                pbrSky.planetRotation.value.z);
-
-            Quaternion spaceRotation = Quaternion.Euler(pbrSky.spaceRotation.value.x,
-                pbrSky.spaceRotation.value.y,
-                pbrSky.spaceRotation.value.z);
-
-            var planetRotationMatrix = Matrix4x4.Rotate(planetRotation);
-            planetRotationMatrix[0] *= -1;
-            planetRotationMatrix[1] *= -1;
-            planetRotationMatrix[2] *= -1;
-
+            // Common material properties
             s_PbrSkyMaterialProperties.SetMatrix(HDShaderIDs._PixelCoordToViewDirWS, builtinParams.pixelCoordToViewDirMatrix);
-            s_PbrSkyMaterialProperties.SetVector(HDShaderIDs._WorldSpaceCameraPos1, cameraPos);
-            s_PbrSkyMaterialProperties.SetMatrix(HDShaderIDs._ViewMatrix1, builtinParams.viewMatrix);
-            s_PbrSkyMaterialProperties.SetMatrix(HDShaderIDs._PlanetRotation, planetRotationMatrix);
-            s_PbrSkyMaterialProperties.SetMatrix(HDShaderIDs._SpaceRotation, Matrix4x4.Rotate(spaceRotation));
-
-            int hasGroundAlbedoTexture = 0;
-
-            if (pbrSky.groundColorTexture.value != null && !simpleEarthMode)
-            {
-                hasGroundAlbedoTexture = 1;
-                s_PbrSkyMaterialProperties.SetTexture(HDShaderIDs._GroundAlbedoTexture, pbrSky.groundColorTexture.value);
-            }
-            s_PbrSkyMaterialProperties.SetInt(HDShaderIDs._HasGroundAlbedoTexture, hasGroundAlbedoTexture);
-
-            int hasGroundEmissionTexture = 0;
-
-            if (pbrSky.groundEmissionTexture.value != null && !simpleEarthMode)
-            {
-                hasGroundEmissionTexture = 1;
-                s_PbrSkyMaterialProperties.SetTexture(HDShaderIDs._GroundEmissionTexture, pbrSky.groundEmissionTexture.value);
-                s_PbrSkyMaterialProperties.SetFloat(HDShaderIDs._GroundEmissionMultiplier, pbrSky.groundEmissionMultiplier.value);
-            }
-            s_PbrSkyMaterialProperties.SetInt(HDShaderIDs._HasGroundEmissionTexture, hasGroundEmissionTexture);
-
-            int hasSpaceEmissionTexture = 0;
-
-            if (pbrSky.spaceEmissionTexture.value != null && !simpleEarthMode)
-            {
-                hasSpaceEmissionTexture = 1;
-                s_PbrSkyMaterialProperties.SetTexture(HDShaderIDs._SpaceEmissionTexture, pbrSky.spaceEmissionTexture.value);
-                s_PbrSkyMaterialProperties.SetFloat(HDShaderIDs._SpaceEmissionMultiplier, pbrSky.spaceEmissionMultiplier.value);
-            }
-            s_PbrSkyMaterialProperties.SetInt(HDShaderIDs._HasSpaceEmissionTexture, hasSpaceEmissionTexture);
-
+            s_PbrSkyMaterialProperties.SetVector(HDShaderIDs._PBRSkyCameraPosPS, cameraPosPS);
             s_PbrSkyMaterialProperties.SetInt(HDShaderIDs._RenderSunDisk, renderSunDisk ? 1 : 0);
+            s_PbrSkyMaterialProperties.SetBuffer(HDShaderIDs._CelestialBodyDatas, s_CelestialBodyBuffer);
 
-            int pass = (renderForCubemap ? 0 : 2);
+            CoreUtils.SetKeyword(material, "LOCAL_SKY", renderingSpace == RenderingSpace.World);
 
-            CoreUtils.DrawFullScreen(builtinParams.commandBuffer, m_PbrSkyMaterial, s_PbrSkyMaterialProperties, pass);
+            if (!customMaterial)
+            {
+                // Precomputation is done, shading is next.
+                Quaternion planetRotation = Quaternion.Euler(pbrSky.planetRotation.value.x,
+                    pbrSky.planetRotation.value.y,
+                    pbrSky.planetRotation.value.z);
+
+                Quaternion spaceRotation = Quaternion.Euler(pbrSky.spaceRotation.value.x,
+                    pbrSky.spaceRotation.value.y,
+                    pbrSky.spaceRotation.value.z);
+
+                var planetRotationMatrix = Matrix4x4.Rotate(planetRotation);
+                planetRotationMatrix[0] *= -1;
+                planetRotationMatrix[1] *= -1;
+                planetRotationMatrix[2] *= -1;
+
+                s_PbrSkyMaterialProperties.SetMatrix(HDShaderIDs._PlanetRotation, planetRotationMatrix);
+                s_PbrSkyMaterialProperties.SetMatrix(HDShaderIDs._SpaceRotation, Matrix4x4.Rotate(spaceRotation));
+
+                int hasGroundAlbedoTexture = 0;
+
+                if (pbrSky.groundColorTexture.value != null && !simpleEarthMode)
+                {
+                    hasGroundAlbedoTexture = 1;
+                    s_PbrSkyMaterialProperties.SetTexture(HDShaderIDs._GroundAlbedoTexture, pbrSky.groundColorTexture.value);
+                }
+                s_PbrSkyMaterialProperties.SetInt(HDShaderIDs._HasGroundAlbedoTexture, hasGroundAlbedoTexture);
+
+                int hasGroundEmissionTexture = 0;
+
+                if (pbrSky.groundEmissionTexture.value != null && !simpleEarthMode)
+                {
+                    hasGroundEmissionTexture = 1;
+                    s_PbrSkyMaterialProperties.SetTexture(HDShaderIDs._GroundEmissionTexture, pbrSky.groundEmissionTexture.value);
+                    s_PbrSkyMaterialProperties.SetFloat(HDShaderIDs._GroundEmissionMultiplier, pbrSky.groundEmissionMultiplier.value);
+                }
+                s_PbrSkyMaterialProperties.SetInt(HDShaderIDs._HasGroundEmissionTexture, hasGroundEmissionTexture);
+
+                int hasSpaceEmissionTexture = 0;
+
+                if (pbrSky.spaceEmissionTexture.value != null && !simpleEarthMode)
+                {
+                    hasSpaceEmissionTexture = 1;
+                    s_PbrSkyMaterialProperties.SetTexture(HDShaderIDs._SpaceEmissionTexture, pbrSky.spaceEmissionTexture.value);
+                    s_PbrSkyMaterialProperties.SetFloat(HDShaderIDs._SpaceEmissionMultiplier, pbrSky.spaceEmissionMultiplier.value);
+                }
+                s_PbrSkyMaterialProperties.SetInt(HDShaderIDs._HasSpaceEmissionTexture, hasSpaceEmissionTexture);
+            }
+
+            int pass = (renderForCubemap ? 0 : 1);
+            CoreUtils.DrawFullScreen(builtinParams.commandBuffer, material, s_PbrSkyMaterialProperties, pass);
+        }
+
+        static internal void FillCelestialBodyData(CommandBuffer cmd, HDAdditionalLightData additional, ref CelestialBodyData celestialBodyData)
+        {
+            var light = additional.legacyLight;
+            var transform = light.transform;
+            celestialBodyData.color = (Vector4)additional.EvaluateLightColor();
+
+            // General
+            celestialBodyData.forward = transform.forward;
+            celestialBodyData.right = transform.right.normalized;
+            celestialBodyData.up = transform.up.normalized;
+
+            var angularDiameter = additional.diameterMultiplerMode ? additional.diameterMultiplier * additional.angularDiameter : additional.diameterOverride;
+            celestialBodyData.angularRadius = angularDiameter * 0.5f * Mathf.Deg2Rad;
+            celestialBodyData.distanceFromCamera = additional.distance;
+            celestialBodyData.radius = Mathf.Tan(celestialBodyData.angularRadius) * celestialBodyData.distanceFromCamera;
+
+            celestialBodyData.surfaceColor = (Vector4)additional.surfaceTint.linear;
+            celestialBodyData.earthshine = additional.earthshine * 0.01f; // earth reflects about 0.01% of sun light
+
+            if (additional.surfaceTexture == null)
+                celestialBodyData.surfaceTextureScaleOffset = Vector4.zero;
+            else
+                celestialBodyData.surfaceTextureScaleOffset = HDRenderPipeline.currentPipeline.m_TextureCaches.lightCookieManager.Fetch2DCookie(cmd, additional.surfaceTexture);
+
+            // Flare
+            celestialBodyData.flareSize = Mathf.Max(additional.flareSize * Mathf.Deg2Rad, 5.960464478e-8f);
+            celestialBodyData.flareFalloff = additional.flareFalloff;
+
+            celestialBodyData.flareCosInner = Mathf.Cos(celestialBodyData.angularRadius);
+            celestialBodyData.flareCosOuter = Mathf.Cos(celestialBodyData.angularRadius + celestialBodyData.flareSize);
+
+            celestialBodyData.flareColor = additional.flareMultiplier * (Vector4)additional.flareTint.linear;
+
+            // Shading
+            var source = additional.celestialBodyShadingSource;
+            if (source == ShadingSource.Emission)
+            {
+                celestialBodyData.type = 0;
+                float rcpSolidAngle = 1.0f / (Mathf.PI * 2.0f * (1 - celestialBodyData.flareCosInner));
+                celestialBodyData.surfaceColor *= rcpSolidAngle;
+                celestialBodyData.flareColor *= rcpSolidAngle;
+
+                celestialBodyData.surfaceColor = Vector4.Scale(celestialBodyData.color, celestialBodyData.surfaceColor);
+                celestialBodyData.flareColor = Vector4.Scale(celestialBodyData.color, celestialBodyData.flareColor);
+            }
+            else
+            {
+                Color sunColor;
+                if (source == ShadingSource.Manual)
+                {
+                    var rotation = Quaternion.AngleAxis(additional.moonPhaseRotation, celestialBodyData.forward);
+                    var remap = Quaternion.FromToRotation(Vector3.right, celestialBodyData.forward);
+                    float phase = additional.moonPhase * 2.0f * Mathf.PI;
+
+                    sunColor = additional.sunColor * additional.sunIntensity;
+                    celestialBodyData.sunDirection = rotation * remap * new Vector3(Mathf.Cos(phase), 0, Mathf.Sin(phase));
+                }
+                else
+                {
+                    var lightSource = additional.sunLightOverride;
+                    if (lightSource == null || lightSource == additional.legacyLight || lightSource.type != LightType.Directional)
+                        lightSource = FindSunLight(additional.legacyLight);
+                    sunColor = lightSource != null ? (Vector4)lightSource.GetComponent<HDAdditionalLightData>().EvaluateLightColor() : Vector4.zero;
+                    celestialBodyData.sunDirection = lightSource != null ? lightSource.transform.forward : Vector3.forward;
+                }
+
+                celestialBodyData.type = 1;
+                celestialBodyData.surfaceColor = Vector4.Scale(sunColor, celestialBodyData.surfaceColor);
+                celestialBodyData.flareColor = Vector4.Scale(sunColor, celestialBodyData.flareColor);
+            }
+        }
+
+        static Light FindSunLight(Light toExclude)
+        {
+            Light result = null;
+            float currentMax = 0.0f;
+            foreach (var light in HDLightRenderDatabase.instance.directionalLights)
+            {
+                if (light != toExclude && light.legacyLight.intensity > currentMax)
+                {
+                    currentMax = light.legacyLight.intensity;
+                    result = light.legacyLight;
+                }
+            }
+            return result;
         }
     }
 }

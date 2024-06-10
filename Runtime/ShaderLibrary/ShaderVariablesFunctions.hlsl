@@ -4,18 +4,15 @@
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/SpaceTransforms.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Packing.hlsl"
 
-// Helper function for Rendering Layers
-#define DEFAULT_LIGHT_LAYERS (RENDERING_LIGHT_LAYERS_MASK >> RENDERING_LIGHT_LAYERS_MASK_SHIFT)
-
-// Note: we need to mask out only 8bits of the layer mask before encoding it as otherwise any value > 255 will map to all layers active if save in a buffer
-uint GetMeshRenderingLightLayer()
+// Note: we need to mask out only 16bits of the layer mask before encoding it as otherwise any value outside will map to all layers active if save in a buffer
+uint GetMeshRenderingLayerMask()
 {
-    return _EnableLightLayers ? (asuint(unity_RenderingLayer.x) & RENDERING_LIGHT_LAYERS_MASK) >> RENDERING_LIGHT_LAYERS_MASK_SHIFT : DEFAULT_LIGHT_LAYERS;
+    return asuint(unity_RenderingLayer.x) & RENDERING_LAYERS_MASK;
 }
 
-uint GetMeshRenderingDecalLayer()
+uint UnpackMeshRenderingLayerMask(float4 packedLayer)
 {
-    return _EnableDecalLayers ? ((asuint(unity_RenderingLayer.x) & RENDERING_DECAL_LAYERS_MASK) >> RENDERING_DECAL_LAYERS_MASK_SHIFT) : DEFAULT_DECAL_LAYERS;
+    return (uint(packedLayer.x * 255.5) << 8) | uint(packedLayer.y * 255.5);
 }
 
 // Return absolute world position of current object

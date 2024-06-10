@@ -14,6 +14,8 @@ namespace UnityEditor.Rendering.HighDefinition.ShaderGraph
             public static BlockFieldDescriptor CustomVelocity = new BlockFieldDescriptor(VertexDescription.name, "CustomVelocity", "Velocity", "VERTEXDESCRIPTION_CUSTOMVELOCITY",
                 new Vector3Control(new Vector3(0.0f, 0.0f, 0.0f)), ShaderStage.Vertex);
 
+            public static BlockFieldDescriptor Width = new BlockFieldDescriptor(VertexDescription.name, "Width", "Width", "VERTEXDESCRIPTION_WIDTH", new FloatControl(0.08f), ShaderStage.Vertex);
+
             // TODO: In the future we may have proper ShaderStage for tessellation, this will need to be revisit then
             public static BlockFieldDescriptor TessellationFactor = new BlockFieldDescriptor(VertexDescription.name, "TessellationFactor", "Tessellation Factor", "VERTEXDESCRIPTION_TESSELLATIONFACTOR",
                 new FloatControl(1.0f), ShaderStage.Vertex);
@@ -30,7 +32,7 @@ namespace UnityEditor.Rendering.HighDefinition.ShaderGraph
         }
 
         [GenerateBlocks("High Definition Render Pipeline")]
-        public struct SurfaceDescription
+        public partial struct SurfaceDescription
         {
             public static string name = "SurfaceDescription";
 
@@ -62,6 +64,8 @@ namespace UnityEditor.Rendering.HighDefinition.ShaderGraph
                 new FloatControl(1.0f), ShaderStage.Fragment);
             public static BlockFieldDescriptor TransmissionMask = new BlockFieldDescriptor(SurfaceDescription.name, "TransmissionMask", "Transmission Mask", "SURFACEDESCRIPTION_TRANSMISSIONMASK",
                 new FloatControl(1.0f), ShaderStage.Fragment);
+            public static BlockFieldDescriptor TransmissionTint = new BlockFieldDescriptor(SurfaceDescription.name, "TransmissionTint", "Transmission Tint", "SURFACEDESCRIPTION_TRANSMISSIONTINT",
+                new ColorControl(Color.white, false), ShaderStage.Fragment);
             public static BlockFieldDescriptor Thickness = new BlockFieldDescriptor(SurfaceDescription.name, "Thickness", "SURFACEDESCRIPTION_THICKNESS",
                 new FloatControl(1.0f), ShaderStage.Fragment);
             public static CustomSlotBlockFieldDescriptor DiffusionProfileHash = new CustomSlotBlockFieldDescriptor(SurfaceDescription.name, "DiffusionProfileHash", "Diffusion Profile", "SURFACEDESCRIPTION_DIFFUSIONPROFILEHASH",
@@ -148,17 +152,14 @@ namespace UnityEditor.Rendering.HighDefinition.ShaderGraph
                 new FloatControl(0.7f), ShaderStage.Fragment);
             public static BlockFieldDescriptor CuticleAngle = new BlockFieldDescriptor(SurfaceDescription.name, "CuticleAngle", "Cuticle Angle", "SURFACEDESCRIPTION_CUTICLEANGLE",
                 new FloatControl(3f), ShaderStage.Fragment);
-            public static BlockFieldDescriptor StrandCountProbe = new BlockFieldDescriptor(SurfaceDescription.name, "StrandCountProbe", "Strand Count Probe", "SURFACEDESCRIPTION_STRANDCOUNTPROBE",
+            public static BlockFieldDescriptor StrandCountProbe = new BlockFieldDescriptor(SurfaceDescription.name, "StrandCountProbe", "Scattering Probe", "SURFACEDESCRIPTION_STRANDCOUNTPROBE",
                 new Vector4Control(Vector4.zero), ShaderStage.Fragment);
-            public static BlockFieldDescriptor StrandShadowBias = new BlockFieldDescriptor(SurfaceDescription.name, "StrandShadowBias", "Strand Shadow Bias", "SURFACEDESCRIPTION_STRANDSHADOWBIAS",
-                new FloatControl(0f), ShaderStage.Fragment);
             public static BlockFieldDescriptor AbsorptionCoefficient = new BlockFieldDescriptor(SurfaceDescription.name, "AbsorptionCoefficient", "Absorption", "SURFACEDESCRIPTION_ABSORPTIONCOEFFICIENT",
                 new Vector3Control(new Vector3(.06f, 0.1f, 0.2f)), ShaderStage.Fragment);
             public static BlockFieldDescriptor Eumelanin = new BlockFieldDescriptor(SurfaceDescription.name, "Eumelanin", "Eumelanin", "SURFACEDESCRIPTION_EUMELANIN",
                 new FloatControl(0.3f), ShaderStage.Fragment);
             public static BlockFieldDescriptor Pheomelanin = new BlockFieldDescriptor(SurfaceDescription.name, "Pheomelanin", "Pheomelanin", "SURFACEDESCRIPTION_PHEOMELANIN",
                 new FloatControl(0.3f), ShaderStage.Fragment);
-
 
             // --------------------------------------------------
             // StackLit

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System;
 using UnityEngine.Serialization;
-using UnityEngine.Experimental.Rendering.RenderGraphModule;
+using UnityEngine.Rendering.RenderGraphModule;
 
 namespace UnityEngine.Rendering.HighDefinition
 {
@@ -78,13 +78,13 @@ namespace UnityEngine.Rendering.HighDefinition
         /// Mirror of the value in the CustomPassVolume where this custom pass is listed
         /// </summary>
         /// <value>The blend value that should be applied to the custom pass effect</value>
-        protected float fadeValue => owner.fadeValue;
+        protected float fadeValue => owner == null ? 0 : owner.fadeValue;
 
         /// <summary>
         /// Get the injection point in HDRP where this pass will be executed
         /// </summary>
         /// <value></value>
-        protected CustomPassInjectionPoint injectionPoint => owner.injectionPoint;
+        protected CustomPassInjectionPoint injectionPoint => owner == null ? CustomPassVolume.currentGlobalInjectionPoint : owner.injectionPoint;
 
         /// <summary>
         /// True if you want your custom pass to be executed in the scene view. False for game cameras only.
@@ -145,6 +145,8 @@ namespace UnityEngine.Rendering.HighDefinition
             public TextureHandle depthBufferRG;
             public TextureHandle normalBufferRG;
             public TextureHandle motionVectorBufferRG;
+            public TextureHandle renderingLayerMaskRG;
+            public BufferHandle waterLineRG;
         }
 
         enum Version
@@ -202,6 +204,11 @@ namespace UnityEngine.Rendering.HighDefinition
                 output.normalBufferRG = builder.ReadWriteTexture(targets.normalBufferRG);
             if (targets.motionVectorBufferRG.IsValid())
                 output.motionVectorBufferRG = builder.ReadWriteTexture(targets.motionVectorBufferRG);
+            // The rendering layer mask buffer is only accessible through the SG node we expose, and we don't allow writing to it
+            if (targets.renderingLayerMaskRG.IsValid())
+                output.renderingLayerMaskRG = builder.ReadTexture(targets.renderingLayerMaskRG);
+            if (targets.waterLineRG.IsValid())
+                output.waterLineRG = builder.ReadBuffer(targets.waterLineRG);
 
             return output;
         }
@@ -232,6 +239,12 @@ namespace UnityEngine.Rendering.HighDefinition
 
                         if (customPass.currentRenderTarget.motionVectorBufferRG.IsValid() && (customPass.injectionPoint != CustomPassInjectionPoint.BeforeRendering))
                             ctx.cmd.SetGlobalTexture(HDShaderIDs._CameraMotionVectorsTexture, customPass.currentRenderTarget.motionVectorBufferRG);
+
+                        if (customPass.currentRenderTarget.renderingLayerMaskRG.IsValid() && customPass.injectionPoint != CustomPassInjectionPoint.BeforeRendering)
+                            ctx.cmd.SetGlobalTexture(HDShaderIDs._RenderingLayerMaskTexture, customPass.currentRenderTarget.renderingLayerMaskRG);
+
+                        if (customPass.currentRenderTarget.waterLineRG.IsValid() && customPass.injectionPoint >= CustomPassInjectionPoint.BeforePostProcess)
+                            ctx.cmd.SetGlobalBuffer(HDShaderIDs._WaterLineBuffer, customPass.currentRenderTarget.waterLineRG);
 
                         if (customPass.currentRenderTarget.normalBufferRG.IsValid() && customPass.injectionPoint != CustomPassInjectionPoint.AfterPostProcess)
                             ctx.cmd.SetGlobalTexture(HDShaderIDs._NormalBufferTexture, customPass.currentRenderTarget.normalBufferRG);

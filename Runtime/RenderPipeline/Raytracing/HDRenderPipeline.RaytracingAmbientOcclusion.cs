@@ -1,5 +1,5 @@
 using UnityEngine.Experimental.Rendering;
-using UnityEngine.Experimental.Rendering.RenderGraphModule;
+using UnityEngine.Rendering.RenderGraphModule;
 
 namespace UnityEngine.Rendering.HighDefinition
 {
@@ -14,7 +14,7 @@ namespace UnityEngine.Rendering.HighDefinition
         void InitRayTracingAmbientOcclusion()
         {
             // Grab the kernels we need
-            m_RTAOApplyIntensityKernel = m_GlobalSettings.renderPipelineRayTracingResources.aoRaytracingCS.FindKernel("RTAOApplyIntensity");
+            m_RTAOApplyIntensityKernel = rayTracingResources.aoRayTracingCS.FindKernel("RTAOApplyIntensity");
         }
 
         private float EvaluateRayTracedAmbientOcclusionHistoryValidity(HDCamera hdCamera)
@@ -112,7 +112,7 @@ namespace UnityEngine.Rendering.HighDefinition
 
                 // Other parameters
                 passData.raytracingCB = shaderVariablesRaytracing;
-                passData.aoShaderRT = m_GlobalSettings.renderPipelineRayTracingResources.aoRaytracingRT;
+                passData.aoShaderRT = rayTracingResources.aoRayTracingRT;
                 passData.rayTracingAccelerationStructure = RequestAccelerationStructure(hdCamera);
                 passData.ditheredTextureSet = GetBlueNoiseManager().DitheredTextureSet8SPP();
 
@@ -178,7 +178,8 @@ namespace UnityEngine.Rendering.HighDefinition
                 filterParams.occluderMotionRejection = aoSettings.occluderMotionRejection.value;
                 filterParams.receiverMotionRejection = aoSettings.receiverMotionRejection.value;
                 filterParams.exposureControl = false;
-                filterParams.fullResolution = true;
+                filterParams.resolutionMultiplier = 1.0f;
+                filterParams.historyResolutionMultiplier = 1.0f;
 
                 TextureHandle denoisedRTAO = GetTemporalFilter().Denoise(renderGraph, hdCamera, filterParams,
                     traceAOResult.signalBuffer, traceAOResult.velocityBuffer, historyBuffer,
@@ -191,7 +192,7 @@ namespace UnityEngine.Rendering.HighDefinition
                 ddParams.kernelSize = aoSettings.denoiserRadius;
                 ddParams.halfResolutionFilter = false;
                 ddParams.jitterFilter = false;
-                ddParams.fullResolutionInput = true;
+                ddParams.resolutionMultiplier = 1.0f;
                 TextureHandle result = diffuseDenoiser.Denoise(renderGraph, hdCamera, ddParams, denoisedRTAO, depthBuffer, normalBuffer, traceAOResult.signalBuffer);
                 PropagateRayTracedAmbientOcclusionHistoryValidity(hdCamera);
                 return result;
@@ -231,7 +232,7 @@ namespace UnityEngine.Rendering.HighDefinition
                 passData.actualWidth = hdCamera.actualWidth;
                 passData.actualHeight = hdCamera.actualHeight;
                 passData.viewCount = hdCamera.viewCount;
-                passData.aoShaderCS = m_GlobalSettings.renderPipelineRayTracingResources.aoRaytracingCS;
+                passData.aoShaderCS = rayTracingResources.aoRayTracingCS;
                 passData.intensityKernel = m_RTAOApplyIntensityKernel;
                 passData.outputTexture = builder.ReadWriteTexture(aoTexture);
 

@@ -1,11 +1,11 @@
 # Refraction models
-A refraction model tells HDRP which simple shape most closely matches the internal shape of the object. See [Set the approximate shape of a refractive object](refraction-use.md#set-shape) for more information.
+A refraction model tells HDRP which simple shape most closely matches the internal shape of the object. See [Set the approximate shape of a refractive object](create-a-refractive-material.md#set-shape) for more information.
 
 ## Sphere refraction model
 
 Use the sphere refraction model if your object is solid with a convex shape. Convex is when the surfaces are not parallel, and bend inward toward the object's center. For example, a round marble.
 
-If you use this model, HDRP does the following [during the refraction process](refraction-concept.md#how-refraction-works-in-hdrp) for each surface pixel:
+If you use this model, HDRP does the following [during the refraction process](Override-Screen-Space-Refraction.md) for each surface pixel:
 
 1. When the light enters the object, HDRP uses the object's surface normal as part of calculating the first refraction. This determines how much the light bends.
 2. HDRP uses a sphere to approximate the object's shape, and the diameter of the sphere to determine how far the light travels inside.
@@ -34,9 +34,9 @@ Use the planar reflection model in the following cases:
 - The surfaces of the object are mostly parallel, for example an ice cube.
 - The object is hollow, which means the solid walls have parallel surfaces. For example, hollow glass.
 
-You should also use the planar refraction model for a hollow sphere, for example a bubble. 
+You should also use the planar refraction model for a hollow sphere, for example a bubble.
 
-If you use this model, HDRP does the following [during the refraction process](refraction-concept.md#how-refraction-works-in-hdrp) for each surface pixel:
+If you use this model, HDRP does the following [during the refraction process](Override-Screen-Space-Refraction.md) for each surface pixel:
 
 1. When the light enters the object, HDRP uses the object's surface normal as part of calculating the first refraction. This determines how much the light bends.
 2. HDRP uses a parallel plane to approximate the exit surface (this is a 'planar projection'), and the distance between the object's surface and the plane to determine how far the light travels inside.
@@ -63,4 +63,3 @@ Objects with increasing thickness, showing how the light is increasingly deforme
 The thin refraction model is the same as the planar refraction model, but HDRP fixes the **Refraction Thickness** at 5mm. You can't override the thickness value.
 
 You should use the thin refraction model with thin objects if you use the [Path Tracing Volume Override](Ray-Tracing-Path-Tracing.md), because it should give better performance.
-

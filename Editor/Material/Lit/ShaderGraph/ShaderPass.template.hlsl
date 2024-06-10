@@ -5,6 +5,7 @@ void BuildSurfaceData(FragInputs fragInputs, inout SurfaceDescription surfaceDes
     // specularOcclusion need to be init ahead of decal to quiet the compiler that modify the SurfaceData struct
     // however specularOcclusion can come from the graph, so need to be init here so it can be override.
     surfaceData.specularOcclusion = 1.0;
+    surfaceData.thickness = 0.0;
 
     $SurfaceDescription.BaseColor:                  surfaceData.baseColor =                 surfaceDescription.BaseColor;
     $SurfaceDescription.Smoothness:                 surfaceData.perceptualSmoothness =      surfaceDescription.Smoothness;
@@ -12,7 +13,7 @@ void BuildSurfaceData(FragInputs fragInputs, inout SurfaceDescription surfaceDes
     $SurfaceDescription.SpecularOcclusion:          surfaceData.specularOcclusion =         surfaceDescription.SpecularOcclusion;
     $SurfaceDescription.Metallic:                   surfaceData.metallic =                  surfaceDescription.Metallic;
     $SurfaceDescription.SubsurfaceMask:             surfaceData.subsurfaceMask =            surfaceDescription.SubsurfaceMask;
-    $SurfaceDescription.TransmissionMask:           surfaceData.transmissionMask =          surfaceDescription.TransmissionMask;
+    $SurfaceDescription.TransmissionMask:           surfaceData.transmissionMask =          surfaceDescription.TransmissionMask.xxx;
     $SurfaceDescription.Thickness:                  surfaceData.thickness =                 surfaceDescription.Thickness;
     $SurfaceDescription.DiffusionProfileHash:       surfaceData.diffusionProfileHash =      asuint(surfaceDescription.DiffusionProfileHash);
     $SurfaceDescription.Specular:                   surfaceData.specularColor =             surfaceDescription.Specular;
@@ -54,6 +55,13 @@ void BuildSurfaceData(FragInputs fragInputs, inout SurfaceDescription surfaceDes
 
     #ifdef _MATERIAL_FEATURE_TRANSMISSION
         surfaceData.materialFeatures |= MATERIALFEATUREFLAGS_LIT_TRANSMISSION;
+    #endif
+
+    #ifdef _MATERIAL_FEATURE_COLORED_TRANSMISSION
+        surfaceData.materialFeatures |= MATERIALFEATUREFLAGS_LIT_TRANSMISSION;
+        surfaceData.materialFeatures |= MATERIALFEATUREFLAGS_LIT_COLORED_TRANSMISSION;
+
+        $SurfaceDescription.TransmissionTint: surfaceData.transmissionMask = surfaceDescription.TransmissionTint;
     #endif
 
     #ifdef _MATERIAL_FEATURE_ANISOTROPY
@@ -99,13 +107,20 @@ void BuildSurfaceData(FragInputs fragInputs, inout SurfaceDescription surfaceDes
     surfaceData.tangentWS = Orthonormalize(surfaceData.tangentWS, surfaceData.normalWS);
 
     #ifdef DEBUG_DISPLAY
+    #if !defined(SHADER_STAGE_RAY_TRACING)
+        // Mipmap mode debugging isn't supported with ray tracing as it relies on derivatives
         if (_DebugMipMapMode != DEBUGMIPMAPMODE_NONE)
         {
-            // TODO: need to update mip info
+            #ifdef FRAG_INPUTS_USE_TEXCOORD0
+                surfaceData.baseColor = GET_TEXTURE_STREAMING_DEBUG(posInput.positionSS, fragInputs.texCoord0);
+            #else
+                surfaceData.baseColor = GET_TEXTURE_STREAMING_DEBUG_NO_UV(posInput.positionSS);
+            #endif
             surfaceData.metallic = 0;
         }
+    #endif
 
-        // We need to call ApplyDebugToSurfaceData after filling the surfarcedata and before filling builtinData
+        // We need to call ApplyDebugToSurfaceData after filling the surfaceData and before filling builtinData
         // as it can modify attribute use for static lighting
         ApplyDebugToSurfaceData(fragInputs.tangentToWorld, surfaceData);
     #endif

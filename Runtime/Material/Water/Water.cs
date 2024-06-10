@@ -51,6 +51,9 @@ namespace UnityEngine.Rendering.HighDefinition
             // Underwater caustics
             [SurfaceDataAttributes("Caustics")]
             public float caustics;
+
+            [SurfaceDataAttributes("Refracted Position WS")]
+            public Vector3 refractedPositionWS;
         }
 
         //-----------------------------------------------------------------------------
@@ -87,8 +90,13 @@ namespace UnityEngine.Rendering.HighDefinition
             // Foam Value
             public float foam;
 
+            // Foam Value
+            public Vector3 foamColor;
+
             // Thickness of the waves
             public float tipThickness;
+
+            public uint frontFace;
 
             // Integer that allows us to track which water surface this is
             public uint surfaceIndex;

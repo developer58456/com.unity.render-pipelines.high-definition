@@ -35,8 +35,8 @@ namespace UnityEditor.Rendering.HighDefinition.ShaderGraph
         }
 
         [SerializeField]
-        BlendMode m_BlendMode = BlendMode.Alpha;
-        public BlendMode blendMode
+        BlendingMode m_BlendMode = BlendingMode.Alpha;
+        public BlendingMode blendingMode
         {
             get => m_BlendMode;
             set => m_BlendMode = value;
@@ -92,7 +92,7 @@ namespace UnityEditor.Rendering.HighDefinition.ShaderGraph
 
         [SerializeField]
         bool m_ExcludeFromTUAndAA = false;
-        public bool excludeFromTUAndAA 
+        public bool excludeFromTUAndAA
         {
             get => m_ExcludeFromTUAndAA;
             set => m_ExcludeFromTUAndAA = value;
@@ -202,6 +202,14 @@ namespace UnityEditor.Rendering.HighDefinition.ShaderGraph
         }
 
         // End Tessellation
+
+        [SerializeField]
+        bool m_DebugSymbols = false;
+        public bool debugSymbols
+        {
+            get => m_DebugSymbols;
+            set => m_DebugSymbols = value;
+        }
 
         [SerializeField]
         ShaderGraphVersion m_Version = MigrationDescription.LastVersion<ShaderGraphVersion>();

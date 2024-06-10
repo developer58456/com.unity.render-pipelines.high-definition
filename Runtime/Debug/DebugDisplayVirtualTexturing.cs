@@ -44,9 +44,6 @@ namespace UnityEngine.Rendering.HighDefinition
         public Settings data = new Settings();
 
         bool IDebugDisplaySettingsQuery.AreAnySettingsActive => true;
-        bool IDebugDisplaySettingsQuery.IsPostProcessingAllowed => true;
-        bool IDebugDisplaySettingsQuery.IsLightingActive => true;
-        bool IDebugDisplaySettingsQuery.TryGetScreenClearColor(ref Color color) => false;
 
         IDebugDisplaySettingsPanelDisposable IDebugDisplaySettingsData.CreatePanel()
         {

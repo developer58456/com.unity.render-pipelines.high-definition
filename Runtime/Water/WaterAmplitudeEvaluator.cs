@@ -97,10 +97,10 @@ namespace UnityEditor.Rendering.HighDefinition
                     spectrumInit.simulationResolution = resolution;
                     spectrumInit.waterSampleOffset = waterSampleOffset;
                     spectrumInit.sliceIndex = 0;
-                    spectrumInit.windOrientation = 0;
-                    spectrumInit.windSpeed = windSpeed;
                     spectrumInit.patchSize = currentPatchSize;
+                    spectrumInit.orientation = 0;
                     spectrumInit.directionDampner = 1.0f;
+                    spectrumInit.windSpeed = windSpeed;
                     spectrumInit.bufferOffset = 0;
                     spectrumInit.H0Buffer = h0BufferCPU;
 

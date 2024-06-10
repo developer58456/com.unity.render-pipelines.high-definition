@@ -3,17 +3,15 @@
 
 #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/BuiltinGIUtilities.hlsl"
 
-// Calculate motion vector in Clip space [-1..1]
-float2 CalculateMotionVector(float4 positionCS, float4 previousPositionCS)
+// Calculate motion vector variant for High Quality Line Rendering, which needs to divide by W much earlier in the pipeline.
+float2 CalculateMotionVector(float4 positionCS, float2 previousPositionSS)
 {
     // This test on define is required to remove warning of divide by 0 when initializing empty struct
     // TODO: Add forward opaque MRT case...
 #if (SHADERPASS == SHADERPASS_MOTION_VECTORS) || defined(_WRITE_TRANSPARENT_MOTION_VECTOR)
     // Encode motion vector
     positionCS.xy = positionCS.xy / positionCS.w;
-    previousPositionCS.xy = previousPositionCS.xy / previousPositionCS.w;
-
-    float2 motionVec = (positionCS.xy - previousPositionCS.xy);
+    float2 motionVec = (positionCS.xy - previousPositionSS);
 
 #ifdef KILL_MICRO_MOVEMENT
     motionVec.x = abs(motionVec.x) < MICRO_MOVEMENT_THRESHOLD.x ? 0 : motionVec.x;
@@ -33,6 +31,12 @@ float2 CalculateMotionVector(float4 positionCS, float4 previousPositionCS)
 #endif
 }
 
+// Calculate motion vector in Clip space [-1..1]
+float2 CalculateMotionVector(float4 positionCS, float4 previousPositionCS)
+{
+    return CalculateMotionVector(positionCS, previousPositionCS.xy / previousPositionCS.w);
+}
+
 // For builtinData we want to allow the user to overwrite default GI in the surface shader / shader graph.
 // So we perform the following order of operation:
 // 1. InitBuiltinData - Init bakeDiffuseLighting and backBakeDiffuseLighting
@@ -48,13 +52,15 @@ void InitBuiltinData(PositionInputs posInput, float alpha, float3 normalWS, floa
     builtinData.opacity = alpha;
 
     // Use uniform directly - The float need to be cast to uint (as unity don't support to set a uint as uniform)
-    builtinData.renderingLayers = GetMeshRenderingLightLayer();
+    builtinData.renderingLayers = GetMeshRenderingLayerMask();
 
     // Sample lightmap/lightprobe/volume proxy
     builtinData.bakeDiffuseLighting = 0.0;
     builtinData.backBakeDiffuseLighting = 0.0;
+#ifndef LIGHT_EVALUATION_SKIP_INDIRECT_DIFFUSE
     SampleBakedGI(  posInput, normalWS, backNormalWS, builtinData.renderingLayers, texCoord1.xy, texCoord2.xy,
                     builtinData.bakeDiffuseLighting, builtinData.backBakeDiffuseLighting);
+#endif
 
     builtinData.isLightmap =
 #if defined(LIGHTMAP_ON) || defined(DYNAMICLIGHTMAP_ON)

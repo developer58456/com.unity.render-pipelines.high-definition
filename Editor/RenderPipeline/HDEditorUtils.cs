@@ -2,12 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using UnityEditor.Inspector.GraphicsSettingsInspectors;
 using UnityEditorInternal;
 using UnityEngine;
 using UnityEngine.Rendering.HighDefinition;
-using UnityEditor.ShaderGraph;
 using UnityEngine.UIElements;
-using System.Runtime.CompilerServices;
+using RenderingLayerMask = UnityEngine.RenderingLayerMask;
+using UnityEngine.Rendering;
 
 namespace UnityEditor.Rendering.HighDefinition
 {
@@ -18,17 +19,34 @@ namespace UnityEditor.Rendering.HighDefinition
     {
         internal const string FormatingPath =
             @"Packages/com.unity.render-pipelines.high-definition/Editor/USS/Formating";
+
         internal const string QualitySettingsSheetPath =
             @"Packages/com.unity.render-pipelines.high-definition/Editor/USS/QualitySettings";
+
         internal const string WizardSheetPath =
             @"Packages/com.unity.render-pipelines.high-definition/Editor/USS/Wizard";
+
         internal const string HDRPAssetBuildLabel = "HDRP:IncludeInBuild";
+
+        internal static bool NeedsToBeIncludedInBuild(HDRenderPipelineAsset hdRenderPipelineAsset)
+        {
+            var labelList = AssetDatabase.GetLabels(hdRenderPipelineAsset);
+            foreach (string item in labelList)
+            {
+                if (item == HDUtils.k_HdrpAssetBuildLabel)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         private static (StyleSheet baseSkin, StyleSheet professionalSkin, StyleSheet personalSkin) LoadStyleSheets(string basePath)
             => (
-            AssetDatabase.LoadAssetAtPath<StyleSheet>($"{basePath}.uss"),
-            AssetDatabase.LoadAssetAtPath<StyleSheet>($"{basePath}Light.uss"),
-            AssetDatabase.LoadAssetAtPath<StyleSheet>($"{basePath}Dark.uss")
+                AssetDatabase.LoadAssetAtPath<StyleSheet>($"{basePath}.uss"),
+                AssetDatabase.LoadAssetAtPath<StyleSheet>($"{basePath}Light.uss"),
+                AssetDatabase.LoadAssetAtPath<StyleSheet>($"{basePath}Dark.uss")
             );
 
         internal static void AddStyleSheets(VisualElement element, string baseSkinPath)
@@ -67,6 +85,7 @@ namespace UnityEditor.Rendering.HighDefinition
             => HDShaderUtils.ResetMaterialKeywords(material);
 
         static readonly GUIContent s_OverrideTooltip = EditorGUIUtility.TrTextContent("", "Override this setting in component.");
+
         internal static bool FlagToggle<TEnum>(TEnum v, SerializedProperty property)
             where TEnum : struct, IConvertible // restrict to ~enum
         {
@@ -93,7 +112,7 @@ namespace UnityEditor.Rendering.HighDefinition
         {
             var isPathRooted = Path.IsPathRooted(path);
             return isPathRooted && path.StartsWith(Application.dataPath)
-                || !isPathRooted && path.StartsWith("Assets");
+                   || !isPathRooted && path.StartsWith("Assets");
         }
 
         // Copy texture from cache
@@ -204,77 +223,35 @@ namespace UnityEditor.Rendering.HighDefinition
         }
 
         /// <summary>
-        /// This is to convert any int into LightLayer which is useful for the version in shadow of lights.
-        /// LightLayer have a CustomPropertyDrawer so for SerializedProperty on LightLayer type,
-        /// prefer using EditorGUILayout.PropertyField.
-        /// </summary>
-        internal static void DrawLightLayerMaskFromInt(GUIContent label, SerializedProperty property)
-        {
-            Rect lineRect = GUILayoutUtility.GetRect(1, EditorGUIUtility.singleLineHeight);
-            DrawLightLayerMask_Internal(lineRect, label, property);
-        }
-
-        internal static void DrawLightLayerMask_Internal(Rect rect, GUIContent label, SerializedProperty property)
-        {
-            EditorGUI.BeginProperty(rect, label, property);
-
-            EditorGUI.BeginChangeCheck();
-            int changedValue = DrawLightLayerMask(rect, property.intValue, label);
-            if (EditorGUI.EndChangeCheck())
-                property.intValue = changedValue;
-
-            EditorGUI.EndProperty();
-        }
-
-        internal static void DrawDecalLayerMask_Internal(Rect rect, GUIContent label, SerializedProperty property)
-        {
-            if (HDRenderPipelineGlobalSettings.instance == null)
-                return;
-
-            EditorGUI.BeginProperty(rect, label, property);
-
-            EditorGUI.BeginChangeCheck();
-            int changedValue = EditorGUI.MaskField(rect, label ?? GUIContent.none, property.intValue, HDRenderPipelineGlobalSettings.instance.prefixedDecalLayerNames);
-            if (EditorGUI.EndChangeCheck())
-                property.intValue = changedValue;
-
-            EditorGUI.EndProperty();
-        }
-
-        /// <summary>
         /// Should be placed between BeginProperty / EndProperty
         /// </summary>
-        internal static int DrawLightLayerMask(Rect rect, int value, GUIContent label = null)
+        internal static uint DrawRenderingLayerMask(Rect rect, uint renderingLayer, GUIContent label = null, bool allowHelpBox = true)
         {
-            int lightLayer = HDAdditionalLightData.RenderingLayerMaskToLightLayer(value);
-            if (HDRenderPipelineGlobalSettings.instance == null)
-                return lightLayer;
-
-            EditorGUI.BeginChangeCheck();
-            lightLayer = EditorGUI.MaskField(rect, label ?? GUIContent.none, lightLayer, HDRenderPipelineGlobalSettings.instance.prefixedLightLayerNames);
-            if (EditorGUI.EndChangeCheck())
-                lightLayer = HDAdditionalLightData.LightLayerToRenderingLayerMask(lightLayer, value);
-            return lightLayer;
+            var value = EditorGUI.RenderingLayerMaskField(rect, label ?? GUIContent.none, renderingLayer);
+            return value;
         }
 
-        /// <summary>
-        /// Similar to <see cref="EditorGUI.HandlePrefixLabel(Rect, Rect, GUIContent)"/> but indent the label
-        /// with <see cref="EditorGUI.indentLevel"/> value.
-        ///
-        /// Use this method to draw a label that will be highlighted during field search.
-        /// </summary>
-        /// <param name="totalPosition"></param>
-        /// <param name="labelPosition"></param>
-        /// <param name="label"></param>
-        internal static void HandlePrefixLabelWithIndent(Rect totalPosition, Rect labelPosition, GUIContent label)
+        internal static void DrawRenderingLayerMask(Rect rect, SerializedProperty property, GUIContent label)
         {
-            // HandlePrefixLabel does not indent with EditorGUI.indentLevel.
-            // It seems that it is 15 pixels per indent space.
-            // You can check by adding 'EditorGUI.LabelField(labelRect, field.label);' before and check that the
-            // is properly overdrawn
-            //
-            labelPosition.x += EditorGUI.indentLevel * 15;
-            EditorGUI.HandlePrefixLabel(totalPosition, labelPosition, label);
+            EditorGUI.BeginProperty(rect, label, property);
+
+            EditorGUI.BeginChangeCheck();
+            var renderingLayer = DrawRenderingLayerMask(rect, property.uintValue, label);
+            if (EditorGUI.EndChangeCheck())
+            {
+                if(property.numericType == SerializedPropertyNumericType.UInt32)
+                    property.uintValue = renderingLayer;
+                else
+                    property.intValue = unchecked((int)renderingLayer);
+            }
+
+            EditorGUI.EndProperty();
+        }
+
+        internal static void DrawRenderingLayerMask(SerializedProperty property, GUIContent style)
+        {
+            Rect rect = EditorGUILayout.GetControlRect(true);
+            DrawRenderingLayerMask(rect, property, style);
         }
 
         // IsPreset is an internal API - lets reuse the usable part of this function
@@ -284,25 +261,202 @@ namespace UnityEditor.Rendering.HighDefinition
             return (int)((editor.target as Component).gameObject.hideFlags) == 93;
         }
 
-        internal static void QualitySettingsHelpBox(string message, MessageType type, HDRenderPipelineUI.Expandable uiSection, string propertyPath)
+        internal static void QualitySettingsHelpBox(string message, MessageType type, HDRenderPipelineUI.ExpandableGroup uiGroupSection, string propertyPath)
         {
             CoreEditorUtils.DrawFixMeBox(message, type, "Open", () =>
             {
                 SettingsService.OpenProjectSettings("Project/Quality/HDRP");
-                HDRenderPipelineUI.Inspector.Expand((int)uiSection);
+                HDRenderPipelineUI.Inspector.Expand((int)uiGroupSection);
                 CoreEditorUtils.Highlight("Project Settings", propertyPath, HighlightSearchMode.Identifier);
                 GUIUtility.ExitGUI();
             });
         }
 
-        internal static void GlobalSettingsHelpBox(string message, MessageType type, string propertyPath)
+        internal static void QualitySettingsHelpBox<TEnum>(string message, MessageType type, HDRenderPipelineUI.ExpandableGroup uiGroupSection, TEnum uiSection, string propertyPath)
+            where TEnum : struct, IConvertible
+        {
+            QualitySettingsHelpBoxForReflection(message, type, uiGroupSection, uiSection.ToInt32(System.Globalization.CultureInfo.InvariantCulture), propertyPath);
+        }
+
+        internal static void QualitySettingsHelpBoxForReflection(string message, MessageType type, HDRenderPipelineUI.ExpandableGroup uiGroupSection, int uiSection, string propertyPath)
         {
             CoreEditorUtils.DrawFixMeBox(message, type, "Open", () =>
             {
-                SettingsService.OpenProjectSettings("Project/Graphics/HDRP Global Settings");
-                CoreEditorUtils.Highlight("Project Settings", propertyPath);
+                SettingsService.OpenProjectSettings("Project/Quality/HDRP");
+                HDRenderPipelineUI.SubInspectors[uiGroupSection].Expand(uiSection);
+
+                CoreEditorUtils.Highlight("Project Settings", propertyPath, HighlightSearchMode.Identifier);
                 GUIUtility.ExitGUI();
             });
+        }
+
+        internal static void GlobalSettingsHelpBox<TGraphicsSettings>(string message, MessageType type)
+            where TGraphicsSettings: IRenderPipelineGraphicsSettings
+        {
+            CoreEditorUtils.DrawFixMeBox(message, type, "Open", () =>
+            {
+                GraphicsSettingsInspectorUtility.OpenAndScrollTo<TGraphicsSettings>();
+            });
+        }
+
+        internal static void GlobalSettingsHelpBox(string message, MessageType type, FrameSettingsField field, string displayName)
+        {
+            CoreEditorUtils.DrawFixMeBox(message, type, "Open", () =>
+            {
+                var attribute = FrameSettingsExtractedDatas.GetFieldAttribute(field);
+
+                GraphicsSettingsInspectorUtility.OpenAndScrollTo<RenderingPathFrameSettings, FrameSettingsArea.LineField>(line =>
+                {
+                    if (line.name != $"line-field-{field}")
+                        return false;
+
+                    FrameSettingsPropertyDrawer.SetExpended(FrameSettingsRenderType.Camera.ToString(), attribute.group, true);
+                    return true;
+                });
+            });
+        }
+
+        // This is used through reflection by inspector in srp core
+        static bool DataDrivenLensFlareHelpBox()
+        {
+            if (!HDRenderPipeline.currentAsset?.currentPlatformRenderPipelineSettings.supportDataDrivenLensFlare ?? false)
+            {
+                EditorGUILayout.Space();
+                HDEditorUtils.QualitySettingsHelpBox("The current HDRP Asset does not support Data Driven Lens Flare.", MessageType.Error,
+                    HDRenderPipelineUI.ExpandableGroup.PostProcess, HDRenderPipelineUI.ExpandablePostProcess.LensFlare, "m_RenderPipelineSettings.supportDataDrivenLensFlare");
+                return false;
+            }
+            
+            HDEditorUtils.EnsureFrameSetting(FrameSettingsField.LensFlareDataDriven, "Lens Flare Data Driven");
+            return true;
+        }
+
+        static void OpenRenderingDebugger(string panelName)
+        {
+            EditorApplication.ExecuteMenuItem("Window/Analysis/Rendering Debugger");
+
+            if (panelName != null)
+            {
+                var manager = DebugManager.instance;
+                manager.RequestEditorWindowPanelIndex(manager.FindPanelIndex(panelName));
+            }
+        }
+
+        static void HighlightInDebugger(HDCamera hdCamera, FrameSettingsField field, string displayName)
+        {
+            OpenRenderingDebugger(hdCamera.camera.name);
+
+            // Doesn't work for some reason
+            //CoreEditorUtils.Highlight("Rendering Debugger", displayName, HighlightSearchMode.Auto);
+            //GUIUtility.ExitGUI();
+        }
+
+        internal static void FrameSettingsHelpBox(HDCamera hdCamera, FrameSettingsField field, string displayName)
+        {
+            var data = HDUtils.TryGetAdditionalCameraDataOrDefault(hdCamera.camera);
+            var defaults = GraphicsSettings.GetRenderPipelineSettings<RenderingPathFrameSettings>().GetDefaultFrameSettings(FrameSettingsRenderType.Camera);
+
+            var type = MessageType.Warning;
+            var attribute = FrameSettingsExtractedDatas.GetFieldAttribute(field);
+
+            bool disabledInGlobal = !defaults.IsEnabled(field);
+            bool disabledByCamera = data.renderingPathCustomFrameSettingsOverrideMask.mask[(uint)field] &&
+                                    !data.renderingPathCustomFrameSettings.IsEnabled(field);
+            bool disabledByDependency = !attribute.dependencies.All(hdCamera.frameSettings.IsEnabled);
+
+            var historyContainer = hdCamera.camera.cameraType == CameraType.SceneView
+                ? FrameSettingsHistory.sceneViewFrameSettingsContainer
+                : HDUtils.TryGetAdditionalCameraDataOrDefault(hdCamera.camera);
+            bool disabledByDebug = FrameSettingsHistory.enabled && !historyContainer.frameSettingsHistory.debug.IsEnabled(field) && historyContainer.frameSettingsHistory.sanitazed.IsEnabled(field);
+
+            var textBase = $"The FrameSetting required to render this effect in the {(hdCamera.camera.cameraType == CameraType.SceneView ? "Scene" : "Game")} view ";
+
+            if (disabledByDebug)
+                CoreEditorUtils.DrawFixMeBox(textBase + "is disabled in the Rendering Debugger.", type, "Open", () => HighlightInDebugger(hdCamera, field, displayName));
+            else if (disabledByCamera)
+                CoreEditorUtils.DrawFixMeBox(textBase + "is disabled on a Camera.", type, "Open", () => EditorUtility.OpenPropertyEditor(hdCamera.camera));
+            else if (disabledInGlobal)
+                GlobalSettingsHelpBox(textBase + "is disabled in the HDRP Global Settings.", type, field, displayName);
+            else if (disabledByDependency)
+                GlobalSettingsHelpBox(textBase + "depends on a disabled FrameSetting.", type, field, displayName);
+        }
+
+        internal static HDCamera[] GetDisplayedCameras()
+        {
+            HashSet<HDCamera> visibleCamera = new();
+
+            foreach (SceneView sceneView in SceneView.sceneViews)
+            {
+                if (!sceneView.hasFocus) continue;
+                visibleCamera.Add(HDCamera.GetOrCreate(sceneView.camera));
+            }
+
+            var assembly = typeof(EditorWindow).Assembly;
+            var type = assembly.GetType("UnityEditor.GameView");
+            var targetDisplayProp = type.GetProperty("targetDisplay");
+
+            foreach (EditorWindow gameView in Resources.FindObjectsOfTypeAll(type))
+            {
+                if (!gameView.hasFocus) continue;
+
+                var targetDisplay = (int)targetDisplayProp.GetValue(gameView);
+                foreach (var camera in HDCamera.GetHDCameras())
+                {
+                    if (camera == null || camera.camera == null)
+                        continue;
+                    if (camera.camera.cameraType == CameraType.Game && camera.camera.targetDisplay == targetDisplay)
+                        visibleCamera.Add(camera);
+                }
+            }
+
+            return visibleCamera.ToArray();
+        }
+
+        internal static bool EnsureFrameSetting(FrameSettingsField field, string displayName)
+        {
+            foreach (var camera in GetDisplayedCameras())
+            {
+                if (!camera.frameSettings.IsEnabled(field))
+                {
+                    FrameSettingsHelpBox(camera, field, displayName);
+                    EditorGUILayout.Space();
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        internal static bool EnsureVolumeAndFrameSetting<T>(Func<T, string> volumeValidator, FrameSettingsField field, string displayName) where T : UnityEngine.Rendering.VolumeComponent
+        {
+            // Wait for volume system to be initialized
+            if (VolumeManager.instance.baseComponentTypeArray == null)
+                return true;
+
+            var cameras = GetDisplayedCameras();
+
+            foreach (var camera in cameras)
+            {
+                var errorString = volumeValidator(camera.volumeStack.GetComponent<T>());
+                if (!string.IsNullOrEmpty(errorString))
+                {
+                    EditorGUILayout.HelpBox(errorString, MessageType.Warning);
+                    EditorGUILayout.Space();
+                    return false;
+                }
+            }
+
+            foreach (var camera in cameras)
+            {
+                if (!camera.frameSettings.IsEnabled(field))
+                {
+                    FrameSettingsHelpBox(camera, field, displayName);
+                    EditorGUILayout.Space();
+                    return false;
+                }
+            }
+
+            return true;
         }
     }
 
@@ -310,6 +464,7 @@ namespace UnityEditor.Rendering.HighDefinition
     internal class BoldLabelScope : GUI.Scope
     {
         FontStyle origFontStyle;
+
         public BoldLabelScope()
         {
             origFontStyle = EditorStyles.label.fontStyle;

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Reflection;
 using UnityEngine;
@@ -8,7 +9,8 @@ using UnityEngine.Rendering.HighDefinition;
 namespace UnityEditor.Rendering.HighDefinition
 {
     [CanEditMultipleObjects]
-    [CustomEditorForRenderPipeline(typeof(Light), typeof(HDRenderPipelineAsset))]
+    [CustomEditor(typeof(Light))]
+    [SupportedOnRenderPipeline(typeof(HDRenderPipelineAsset))]
     sealed partial class HDLightEditor : LightEditor
     {
         public SerializedHDLight m_SerializedHDLight;
@@ -134,13 +136,13 @@ namespace UnityEditor.Rendering.HighDefinition
 
             // Each handles manipulate only one light
             // Thus do not rely on serialized properties
-            HDLightType lightType = targetAdditionalData.type;
+            LightType lightType = targetAdditionalData.legacyLight.type;
 
-            if (lightType == HDLightType.Directional || lightType == HDLightType.Point)
-			{
-				base.OnSceneGUI();
-			}
-			else if (lightType == HDLightType.Area && targetAdditionalData.areaLightShape == AreaLightShape.Disc)
+            if (lightType == LightType.Directional || lightType == LightType.Point)
+            {
+                base.OnSceneGUI();
+            }
+            else if (lightType == LightType.Disc)
             {
                 EditorGUI.BeginChangeCheck();
 
@@ -156,6 +158,49 @@ namespace UnityEditor.Rendering.HighDefinition
             }
             else
                 HDLightUI.DrawHandles(targetAdditionalData, this);
+
+            if (lightType == LightType.Directional)
+            {
+                var hdriSkies = GetHDRISkys();
+                foreach (var sky in hdriSkies)
+                {
+                    if (sky.lockSun.value)
+                    {
+                        Vector3 currentRot = targetAdditionalData.legacyLight.transform.rotation.eulerAngles;
+                        if (Math.Abs(sky.rotation.value - currentRot.y) > 0.01f)
+                        {
+                            sky.sunInitialRotation.value = 0f - currentRot.y;
+                            sky.rotation.value = currentRot.y;
+                            EditorUtility.SetDirty(sky);
+                        }
+                    }
+                }
+            }
+        }
+
+        List<HDRISky> GetHDRISkys()
+        {
+            LayerMask volumesMask = LayerMask.NameToLayer("Everything");
+            var volumes = VolumeManager.instance.GetVolumes(volumesMask);
+
+            List<HDRISky> skies = new List<HDRISky>();
+            foreach (var volume in volumes)
+            {
+                var profile = volume.HasInstantiatedProfile() ? volume.profile : volume.sharedProfile;
+                if (profile == null)
+                    continue;
+
+                foreach (var component in profile.components)
+                {
+                    HDRISky sky = component as HDRISky;
+                    if (sky != null)
+                    {
+                        skies.Add(sky);
+                    }
+                }
+            }
+
+            return skies;
         }
 
         internal Color legacyLightColor

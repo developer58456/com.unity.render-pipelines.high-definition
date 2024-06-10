@@ -10,12 +10,12 @@ using UnityEngine.Rendering.HighDefinition;
 namespace UnityEditor.Rendering.HighDefinition
 {
     [SRPFilter(typeof(HDRenderPipeline))]
-    [Title("Utility", "High Definition Render Pipeline", "Water", "EvaluateScatteringColor_Water (Preview)")]
+    [Title("Utility", "High Definition Render Pipeline", "Water", "EvaluateScatteringColor_Water")]
     class EvaluateScatteringColor_Water : AbstractMaterialNode, IGeneratesBodyCode
     {
         public EvaluateScatteringColor_Water()
         {
-            name = "Evaluate Scattering Color Water (Preview)";
+            name = "Evaluate Scattering Color Water";
             UpdateNodeAfterDeserialization();
         }
 
@@ -24,20 +24,17 @@ namespace UnityEditor.Rendering.HighDefinition
         const int kAbsorptionTintInputSlotId = 0;
         const string kAbsorptionTintInputSlotName = "AbsorptionTint";
 
-        const int kSSSMaskInputSlotId = 1;
-        const string kSSSMaskInputSlotName = "SSSMask";
-
-        const int kLowFrequencyHeightInputSlotId = 2;
+        const int kLowFrequencyHeightInputSlotId = 1;
         const string kLowFrequencyHeightInputSlotName = "LowFrequencyHeight";
 
-        const int kHorizontalDisplacementInputSlotId = 3;
+        const int kHorizontalDisplacementInputSlotId = 2;
         const string kHorizontalDisplacementInputSlotName = "HorizontalDisplacement";
 
-        const int kDeepFoamInputSlotId = 4;
+        const int kDeepFoamInputSlotId = 3;
         const string kDeepFoamInputSlotName = "DeepFoam";
 
-        const int kScatteringColorOutputSlotId = 5;
-        const string kScatteringColorOutputSlotName = "ScatteringColor";
+        const int kScatteringColorOutputSlotId = 4;
+        const string kScatteringColorOutputSlotName = "BaseColor";
 
         public override bool hasPreview { get { return false; } }
 
@@ -47,7 +44,6 @@ namespace UnityEditor.Rendering.HighDefinition
             AddSlot(new Vector3MaterialSlot(kAbsorptionTintInputSlotId, kAbsorptionTintInputSlotName, kAbsorptionTintInputSlotName, SlotType.Input, Vector3.zero, ShaderStageCapability.Fragment));
             AddSlot(new Vector1MaterialSlot(kLowFrequencyHeightInputSlotId, kLowFrequencyHeightInputSlotName, kLowFrequencyHeightInputSlotName, SlotType.Input, 0, ShaderStageCapability.Fragment));
             AddSlot(new Vector1MaterialSlot(kHorizontalDisplacementInputSlotId, kHorizontalDisplacementInputSlotName, kHorizontalDisplacementInputSlotName, SlotType.Input, 0, ShaderStageCapability.Fragment));
-            AddSlot(new Vector1MaterialSlot(kSSSMaskInputSlotId, kSSSMaskInputSlotName, kSSSMaskInputSlotName, SlotType.Input, 0, ShaderStageCapability.Fragment));
             AddSlot(new Vector1MaterialSlot(kDeepFoamInputSlotId, kDeepFoamInputSlotName, kDeepFoamInputSlotName, SlotType.Input, 0, ShaderStageCapability.Fragment));
 
             // Output
@@ -59,7 +55,6 @@ namespace UnityEditor.Rendering.HighDefinition
                 kAbsorptionTintInputSlotId,
                 kLowFrequencyHeightInputSlotId,
                 kHorizontalDisplacementInputSlotId,
-                kSSSMaskInputSlotId,
                 kDeepFoamInputSlotId,
 
                 // Output
@@ -72,8 +67,8 @@ namespace UnityEditor.Rendering.HighDefinition
             if (generationMode == GenerationMode.ForReals)
             {
                 // Evaluate the data
-                sb.AppendLine("$precision3 {5} = EvaluateScatteringColor({0}, {1}, {2}, {3}, {4});",
-                    GetSlotValue(kSSSMaskInputSlotId, generationMode),
+                sb.AppendLine("$precision3 {5} = EvaluateScatteringColor(IN.{0}.xzy, {1}, {2}, {3}, {4});",
+                    ShaderGeneratorNames.GetUVName(UVChannel.UV0),
                     GetSlotValue(kLowFrequencyHeightInputSlotId, generationMode),
                     GetSlotValue(kHorizontalDisplacementInputSlotId, generationMode),
                     GetSlotValue(kAbsorptionTintInputSlotId, generationMode),

@@ -1,4 +1,5 @@
 using System;
+using UnityEngine.Assertions;
 #if UNITY_EDITOR
 using UnityEditor;
 using UnityEditor.Rendering;
@@ -24,6 +25,8 @@ namespace UnityEngine.Rendering.HighDefinition
             PCSSUIUpdate,
             MoveEmissionMesh,
             EnableApplyRangeAttenuationOnBoxLight,
+            UpdateLightShapeToCore,
+            UpdateLightUnitsToCore,
         }
 
         /// <summary>
@@ -78,7 +81,7 @@ namespace UnityEngine.Rendering.HighDefinition
                 // Added the ShadowLayer
                 // When we upgrade the option to decouple light and shadow layers will be disabled
                 // so we can sync the shadow layer mask (from the legacyLight) and the new light layer mask
-                data.lightlayersMask = (LightLayerEnum)RenderingLayerMaskToLightLayer(data.legacyLight.renderingLayerMask);
+                data.lightlayersMask = (RenderingLayerMask)RenderingLayerMaskToLightLayer(data.legacyLight.renderingLayerMask);
             }),
             MigrationStep.New(Version.ShadowResolution, (HDAdditionalLightData data) =>
             {
@@ -137,7 +140,7 @@ namespace UnityEngine.Rendering.HighDefinition
                         data.m_PointlightHDType = PointLightHDType.Area;
                         data.m_AreaLightShape = AreaLightShape.Tube;
                         break;
-                        //No other AreaLight types where supported at this time
+                    //No other AreaLight types where supported at this time
                 }
             }),
             MigrationStep.New(Version.PCSSUIUpdate, (HDAdditionalLightData data) =>
@@ -178,6 +181,62 @@ namespace UnityEngine.Rendering.HighDefinition
                         data.applyRangeAttenuation = false;
                     }
                 }
+            }),
+            MigrationStep.New(Version.UpdateLightShapeToCore, (HDAdditionalLightData data) =>
+            {
+                var light = data.GetComponent<Light>();
+                if (light != null)
+                {
+                    if (light.type == LightType.Point && data.m_PointlightHDType == PointLightHDType.Area)
+                    {
+                        if (data.m_AreaLightShape == AreaLightShape.Rectangle)
+                        {
+                            light.type = LightType.Rectangle;
+                        }
+                        else if (data.m_AreaLightShape == AreaLightShape.Tube)
+                        {
+                            light.type = LightType.Tube;
+                        }
+                        else
+                        {
+                            Assert.IsTrue(data.m_AreaLightShape == AreaLightShape.Disc);
+                            light.type = LightType.Disc;
+                        }
+                    }
+                    else if (light.type == LightType.Spot)
+                    {
+                        if (data.m_SpotLightShape == SpotLightShape.Box)
+                        {
+                            light.type = LightType.Box;
+                        }
+                        else if (data.m_SpotLightShape == SpotLightShape.Pyramid)
+                        {
+                            light.type = LightType.Pyramid;
+                        }
+                        else
+                        {
+                            Assert.IsTrue(data.m_SpotLightShape == SpotLightShape.Cone);
+                        }
+                    }
+                }
+            }),
+            MigrationStep.New(Version.UpdateLightUnitsToCore, (HDAdditionalLightData data) =>
+            {
+                // Copy data from the HDRP's HDAdditionalLight component to the Unity's Light component
+                var light = data.GetComponent<Light>();
+                light.enableSpotReflector = data.m_EnableSpotReflector;
+                light.luxAtDistance = data.m_LuxAtDistance;
+                // The light unit should already be compatible with the light type, since HDRP already checks
+                light.lightUnit = data.m_LightUnit;
+                // HDRP has stored Light.intensity in candela for point and spot lights, lux for directional lights, and
+                // nits for area lights. This is great, and means that we don't need to perform any migration for this
+                // field.
+                if (light.type == LightType.Pyramid)
+                {
+                    // The UI expects areaSize.x to be pyramid aspect ratio from now on.
+                    // This is a temporary solution until we break out areaSize into multiple fields
+                    light.areaSize = new Vector2(data.aspectRatio, light.areaSize.y);
+                }
             })
             );
 #pragma warning restore 0618, 0612
@@ -195,7 +254,7 @@ namespace UnityEngine.Rendering.HighDefinition
         [Obsolete("Use Light.renderingLayerMask instead")]
         [FormerlySerializedAs("lightLayers")]
         [ExcludeCopy]
-        LightLayerEnum m_LightLayers = LightLayerEnum.LightLayerDefault;
+        RenderingLayerMask m_LightLayers = RenderingLayerMask.LightLayerDefault;
 
         [Obsolete]
         [SerializeField]

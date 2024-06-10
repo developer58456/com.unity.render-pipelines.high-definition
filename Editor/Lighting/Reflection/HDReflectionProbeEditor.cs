@@ -4,10 +4,12 @@ using UnityEngine;
 using UnityEngine.Assertions;
 using UnityEngine.Rendering.HighDefinition;
 using UnityEditor.Rendering;
+using UnityEngine.Rendering;
 
 namespace UnityEditor.Rendering.HighDefinition
 {
-    [CustomEditorForRenderPipeline(typeof(ReflectionProbe), typeof(HDRenderPipelineAsset))]
+    [CustomEditor(typeof(ReflectionProbe))]
+    [SupportedOnRenderPipeline(typeof(HDRenderPipelineAsset))]
     [CanEditMultipleObjects]
     sealed partial class HDReflectionProbeEditor : HDProbeEditor<HDProbeSettingsProvider, SerializedHDReflectionProbe>
     {
@@ -33,14 +35,9 @@ namespace UnityEditor.Rendering.HighDefinition
             EditorUtility.CopySerialized(HDUtils.s_DefaultHDAdditionalReflectionData, reflectionProbeAdditionalData);
         }
 
-        [MenuItem("CONTEXT/ReflectionProbe/Show All Additional Properties...", false, 100)]
+        [MenuItem("CONTEXT/ReflectionProbe/Open Preferences > Graphics...", false, 100)]
+        [MenuItem("CONTEXT/PlanarReflectionProbe/Open Preferences > Graphics...", false, 700)]
         static void ShowAllAdditionalProperties(MenuCommand menuCommand)
-        {
-            CoreRenderPipelinePreferences.Open();
-        }
-
-        [MenuItem("CONTEXT/PlanarReflectionProbe/Show All Additional Properties...", false, 700)]
-        static void ShowAllAdditionalPropertiesPlanar(MenuCommand menuCommand)
         {
             CoreRenderPipelinePreferences.Open();
         }
@@ -93,6 +90,7 @@ namespace UnityEditor.Rendering.HighDefinition
         ProbeSettingsOverride HDProbeUI.IProbeUISettingsProvider.displayedCustomSettings => new ProbeSettingsOverride
         {
             probe = ProbeSettingsFields.lightingLightLayer
+                | ProbeSettingsFields.importance
                 | ProbeSettingsFields.lightingMultiplier
                 | ProbeSettingsFields.lightingWeight
                 | ProbeSettingsFields.lightingFadeDistance,

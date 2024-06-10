@@ -24,13 +24,15 @@ GLOBAL_CBUFFER_START(ShaderVariablesRaytracing, b3)
     float _DirectionalShadowFallbackIntensity;
     float _RayTracingLodBias;
     int _RayTracingRayMissFallbackHierarchy;
+    int _RayTracingRayMissUseAmbientProbeAsSky;
     int _RayTracingLastBounceFallbackHierarchy;
     int _RayTracingClampingFlag;
     float _RayTracingAmbientProbeDimmer;
     int _RayTracingAPVRayMiss;
     float _RayTracingRayBias;
     float _RayTracingDistantRayBias;
-    int _PaddingRT0;
+    int _RayTracingReflectionFrameIndex;
+    uint _RaytracingAPVLayerMask;
 CBUFFER_END
 
 

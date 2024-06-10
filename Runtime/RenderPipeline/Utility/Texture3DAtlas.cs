@@ -152,7 +152,8 @@ namespace UnityEngine.Rendering.HighDefinition
                 m_Elements.Add(elem);
             }
 
-            m_Texture3DAtlasCompute = HDRenderPipelineGlobalSettings.instance.renderPipelineResources.shaders.texture3DAtlasCS;
+            var shaders = GraphicsSettings.GetRenderPipelineSettings<HDRenderPipelineRuntimeShaders>();
+            m_Texture3DAtlasCompute = shaders.texture3DAtlasCS;
             m_CopyKernel = m_Texture3DAtlasCompute.FindKernel("Copy");
             m_GenerateMipKernel = m_Texture3DAtlasCompute.FindKernel("GenerateMipMap");
             m_Texture3DAtlasCompute.GetKernelThreadGroupSizes(m_CopyKernel, out var groupThreadX, out var groupThreadY, out var groupThreadZ);
@@ -283,7 +284,7 @@ namespace UnityEngine.Rendering.HighDefinition
 
         AtlasElement FindFreeElementWithSize(int size)
         {
-            AtlasElement FindFreeElement(int size, AtlasElement elem)
+            static AtlasElement FindFreeElement(int size, AtlasElement elem)
             {
                 if (elem.size == size)
                 {
@@ -403,7 +404,7 @@ namespace UnityEngine.Rendering.HighDefinition
             // If we need mip maps, we either copy them from the source if it has mip maps or we generate them.
             if (m_HasMipMaps)
             {
-                int mipMapCount = m_HasMipMaps ? Mathf.FloorToInt(Mathf.Log(element.texture.width, 2)) + 1 : 1;
+                int mipMapCount = m_HasMipMaps ? CoreUtils.GetMipCount(element.texture.width) : 1;
                 bool sourceHasMipMaps = element.texture.mipmapCount > 1;
 
                 // If the source 3D texture has mipmaps, we can just copy them
@@ -443,7 +444,7 @@ namespace UnityEngine.Rendering.HighDefinition
 
         void CopyMips(CommandBuffer cmd, Texture source, Texture destination, Vector3Int destinationOffset)
         {
-            int mipMapCount = Mathf.FloorToInt(Mathf.Log(source.width, 2)) + 1;
+            int mipMapCount = CoreUtils.GetMipCount(source.width);
 
             for (int i = 1; i < mipMapCount; i++)
             {

@@ -28,6 +28,8 @@ namespace UnityEngine.Rendering.HighDefinition
             PlanarResolutionScalability,
             /// <summary>Version Step.</summary>
             UpdateMSAA,
+            /// <summary>Version Step.</summary>
+            AddProbeImportance,
         }
 
         /// <summary>
@@ -90,6 +92,10 @@ namespace UnityEngine.Rendering.HighDefinition
             MigrationStep.New(Version.UpdateMSAA, (HDProbe data) =>
             {
                 FrameSettings.MigrateMSAA(ref data.m_ProbeSettings.cameraSettings.renderingPathCustomFrameSettings, ref data.m_ProbeSettings.cameraSettings.renderingPathCustomFrameSettingsOverrideMask);
+            }),
+            MigrationStep.New(Version.AddProbeImportance, (HDProbe data) =>
+            {
+                data.m_ProbeSettings.lighting.importance = (data.m_ProbeSettings.type == ProbeSettings.ProbeType.PlanarProbe)? 64 : 1;
             })
         );
 
@@ -126,7 +132,7 @@ namespace UnityEngine.Rendering.HighDefinition
         protected ProbeSettings.Mode m_ObsoleteMode = ProbeSettings.Mode.Baked;
 
         [SerializeField, FormerlySerializedAs("lightLayers"), Obsolete("For Data Migration")]
-        LightLayerEnum m_ObsoleteLightLayers = LightLayerEnum.LightLayerDefault;
+        RenderingLayerMask m_ObsoleteLightLayers = RenderingLayerMask.LightLayerDefault;
 
         /// <summary>Obsolete field</summary>
         [SerializeField, FormerlySerializedAs("m_CaptureSettings"), Obsolete("For Data Migration")]

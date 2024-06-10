@@ -29,7 +29,6 @@ void LightLoop( float3 V, PositionInputs posInput, PreLightData preLightData, BS
     context.contactShadow    = 1.0;
     context.shadowContext    = InitShadowContext();
     context.shadowValue      = 1.0;
-    context.splineVisibility = -1;
     context.sampleReflection = 0;
 #ifdef APPLY_FOG_ON_SKY_REFLECTIONS
     context.positionWS       = posInput.positionWS;
@@ -78,7 +77,7 @@ void LightLoop( float3 V, PositionInputs posInput, PreLightData preLightData, BS
     GetLightCountAndStartCluster(actualWSPos, LIGHTCATEGORY_PUNCTUAL, lightStart, lightEnd, cellIndex);
     #else
     lightStart = 0;
-    lightEnd = _PunctualLightCountRT;
+    lightEnd = _WorldPunctualLightCount;
     #endif
 
     uint i = 0;
@@ -87,7 +86,7 @@ void LightLoop( float3 V, PositionInputs posInput, PreLightData preLightData, BS
         #ifdef USE_LIGHT_CLUSTER
         LightData lightData = FetchClusterLightIndex(cellIndex, i);
         #else
-        LightData lightData = _LightDatasRT[i];
+        LightData lightData = _WorldLightDatas[i];
         #endif
         if (IsMatchingLightLayer(lightData.lightLayers, builtinData.renderingLayers))
         {
@@ -140,6 +139,7 @@ void LightLoop( float3 V, PositionInputs posInput, PreLightData preLightData, BS
                 R,
                 V,
                 posInput.positionSS,
+                _RaytracingAPVLayerMask,
                 builtinData.bakeDiffuseLighting,
                 builtinData.backBakeDiffuseLighting,
                 lightInReflDir);
@@ -154,7 +154,7 @@ void LightLoop( float3 V, PositionInputs posInput, PreLightData preLightData, BS
         // Make sure the baked diffuse lighting is tinted with the diffuse color
         ModifyBakedDiffuseLighting(V, posInput, preLightData, bsdfData, builtinData);
     #endif
-    
+
         // Add emissiveon top of diffuse
         builtinData.bakeDiffuseLighting += emissive;
     }
@@ -177,7 +177,7 @@ void LightLoop( float3 V, PositionInputs posInput, PreLightData preLightData, BS
     GetLightCountAndStartCluster(actualWSPos, LIGHTCATEGORY_ENV, lightStart, lightEnd, cellIndex);
     #else
     lightStart = 0;
-    lightEnd = _EnvLightCountRT;
+    lightEnd = _WorldEnvLightCount;
     #endif
 
     context.sampleReflection = SINGLE_PASS_CONTEXT_SAMPLE_REFLECTION_PROBES;
@@ -190,7 +190,7 @@ void LightLoop( float3 V, PositionInputs posInput, PreLightData preLightData, BS
             #ifdef USE_LIGHT_CLUSTER
             EnvLightData envLightData = FetchClusterEnvLightIndex(cellIndex, envLightIdx);
             #else
-            EnvLightData envLightData = _EnvLightDatasRT[envLightIdx];
+            EnvLightData envLightData = _WorldEnvLightDatas[envLightIdx];
             #endif
 
             if (reflectionHierarchyWeight < 1.0)
@@ -243,8 +243,8 @@ void LightLoop( float3 V, PositionInputs posInput, PreLightData preLightData, BS
     // Let's loop through all the
     GetLightCountAndStartCluster(actualWSPos, LIGHTCATEGORY_AREA, lightStart, lightEnd, cellIndex);
     #else
-    lightStart = _PunctualLightCountRT;
-    lightEnd = _PunctualLightCountRT + _AreaLightCountRT;
+    lightStart = _WorldPunctualLightCount;
+    lightEnd = _WorldPunctualLightCount + _WorldAreaLightCount;
     #endif
 
     if (lightEnd != lightStart)
@@ -254,7 +254,7 @@ void LightLoop( float3 V, PositionInputs posInput, PreLightData preLightData, BS
         #ifdef USE_LIGHT_CLUSTER
         LightData lightData = FetchClusterLightIndex(cellIndex, i);
         #else
-        LightData lightData = _LightDatasRT[i];
+        LightData lightData = _WorldLightDatas[i];
         #endif
 
         while (i < last && lightData.lightType == GPULIGHTTYPE_TUBE)
@@ -270,7 +270,7 @@ void LightLoop( float3 V, PositionInputs posInput, PreLightData preLightData, BS
             #ifdef USE_LIGHT_CLUSTER
             lightData = FetchClusterLightIndex(cellIndex, i);
             #else
-            lightData = _LightDatasRT[i];
+            lightData = _WorldLightDatas[i];
             #endif
         }
 
@@ -287,7 +287,7 @@ void LightLoop( float3 V, PositionInputs posInput, PreLightData preLightData, BS
             #ifdef USE_LIGHT_CLUSTER
             lightData = FetchClusterLightIndex(cellIndex, i);
             #else
-            lightData = _LightDatasRT[i];
+            lightData = _WorldLightDatas[i];
             #endif
         }
     }

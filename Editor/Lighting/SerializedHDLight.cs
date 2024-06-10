@@ -1,5 +1,6 @@
 using UnityEngine.Rendering.HighDefinition;
 using UnityEngine;
+using System;
 using System.Linq;
 using System.Collections.Generic;
 
@@ -7,12 +8,7 @@ namespace UnityEditor.Rendering.HighDefinition
 {
     internal class SerializedHDLight : ISerializedLight
     {
-        // Common properties
-        public SerializedProperty intensity { get; }
-
         // HDRP specific properties
-        public SerializedProperty enableSpotReflector;
-        public SerializedProperty luxAtDistance;
         public SerializedProperty spotInnerPercent;
         public SerializedProperty spotIESCutoffPercent;
         public SerializedProperty lightDimmer;
@@ -20,7 +16,6 @@ namespace UnityEditor.Rendering.HighDefinition
         public SerializedProperty affectDiffuse;
         public SerializedProperty affectSpecular;
         public SerializedProperty nonLightmappedOnly;
-        public SerializedProperty spotLightShape;
         public SerializedProperty shapeWidth;
         public SerializedProperty shapeHeight;
         public SerializedProperty barnDoorAngle;
@@ -31,7 +26,6 @@ namespace UnityEditor.Rendering.HighDefinition
         public SerializedProperty applyRangeAttenuation;
         public SerializedProperty volumetricDimmer;
         public SerializedProperty volumetricFadeDistance;
-        public SerializedProperty lightUnit;
         public SerializedProperty displayAreaLightEmissiveMesh;
         public SerializedProperty areaLightEmissiveMeshCastShadow;
         public SerializedProperty deportedAreaLightEmissiveMeshCastShadow;
@@ -49,18 +43,13 @@ namespace UnityEditor.Rendering.HighDefinition
         public SerializedProperty iesPoint;
         public SerializedProperty iesSpot;
         public SerializedProperty includeForRayTracing;
+        public SerializedProperty includeForPathTracing;
         public SerializedProperty areaLightShadowCone;
         public SerializedProperty useCustomSpotLightShadowCone;
         public SerializedProperty customSpotLightShadowCone;
         public SerializedProperty useScreenSpaceShadows;
         public SerializedProperty interactsWithSky;
         public SerializedProperty angularDiameter;
-        public SerializedProperty flareSize;
-        public SerializedProperty flareTint;
-        public SerializedProperty flareFalloff;
-        public SerializedProperty surfaceTexture;
-        public SerializedProperty surfaceTint;
-        public SerializedProperty distance;
         public SerializedProperty useRayTracedShadows;
         public SerializedProperty numRayTracingSamples;
         public SerializedProperty filterTracedShadow;
@@ -74,6 +63,33 @@ namespace UnityEditor.Rendering.HighDefinition
         public SerializedProperty evsmLightLeakBias;
         public SerializedProperty evsmVarianceBias;
         public SerializedProperty evsmBlurPasses;
+        public SerializedProperty dirLightPCSSMaxPenumbraSize;
+        public SerializedProperty dirLightPCSSMaxSamplingDistance;
+        public SerializedProperty dirLightPCSSMinFilterSizeTexels;
+        public SerializedProperty dirLightPCSSMinFilterMaxAngularDiameter;
+        public SerializedProperty dirLightPCSSBlockerSearchAngularDiameter;
+        public SerializedProperty dirLightPCSSBlockerSamplingClumpExponent;
+        public SerializedProperty dirLightPCSSBlockerSampleCount;
+        public SerializedProperty dirLightPCSSFilterSampleCount;
+
+        // Celestial Body
+        public SerializedProperty diameterOverride;
+        public SerializedProperty diameterMultiplier;
+        public SerializedProperty diameterMultiplerMode;
+        public SerializedProperty distance;
+        public SerializedProperty surfaceTexture;
+        public SerializedProperty surfaceTint;
+        public SerializedProperty shadingSource;
+        public SerializedProperty sunLightOverride;
+        public SerializedProperty sunColor;
+        public SerializedProperty sunIntensity;
+        public SerializedProperty phase;
+        public SerializedProperty phaseRotation;
+        public SerializedProperty earthshine;
+        public SerializedProperty flareSize;
+        public SerializedProperty flareFalloff;
+        public SerializedProperty flareTint;
+        public SerializedProperty flareMultiplier;
 
         // Improved moment shadows data
         public SerializedProperty lightAngle;
@@ -106,8 +122,8 @@ namespace UnityEditor.Rendering.HighDefinition
         public SerializedProperty slopeBias;
         public SerializedProperty normalBias;
 
-        internal SerializedProperty pointLightHDType;
-        private SerializedProperty areaLightShapeProperty;
+        [Obsolete("This property has been deprecated. Use SerializedHDLight.settings.intensity instead.")]
+        public SerializedProperty intensity => settings.intensity;
 
         private GameObject[] emissiveMeshes;
 
@@ -121,86 +137,6 @@ namespace UnityEditor.Rendering.HighDefinition
 
         //contain serialized property that are mainly used to draw inspector
         public LightEditor.Settings settings { get; }
-
-        //type is converted on the fly each time so we cannot have SerializedProperty on it
-        public HDLightType type
-        {
-            get => haveMultipleTypeValue
-            ? (HDLightType)(-1)     //as serialize property on enum when mixed value state happens
-            : (serializedObject.targetObjects[0] as HDAdditionalLightData).type;
-            set
-            {
-                //Note: type is split in both component
-                var undoObjects = serializedObject.targetObjects.SelectMany((Object x) => new Object[] { x, (x as HDAdditionalLightData).legacyLight }).ToArray();
-                Undo.RecordObjects(undoObjects, "Change light type");
-                var objects = serializedObject.targetObjects;
-                for (int index = 0; index < objects.Length; ++index)
-                    (objects[index] as HDAdditionalLightData).type = value;
-                serializedObject.Update();
-            }
-        }
-
-        bool haveMultipleTypeValue
-        {
-            get
-            {
-                var objects = serializedObject.targetObjects;
-                HDLightType value = (objects[0] as HDAdditionalLightData).type;
-                for (int index = 1; index < objects.Length; ++index)
-                    if (value != (objects[index] as HDAdditionalLightData).type)
-                        return true;
-                return false;
-            }
-        }
-
-        //areaLightShape need to be accessed by its property to always report modification in the right way
-        public AreaLightShape areaLightShape
-        {
-            get => haveMultipleAreaLightShapeValue
-            ? (AreaLightShape)(-1)     //as serialize property on enum when mixed value state happens
-            : (serializedObject.targetObjects[0] as HDAdditionalLightData).areaLightShape;
-            set
-            {
-                //Note: Disc is actually changing legacyLight.type to Disc
-                var undoObjects = serializedObject.targetObjects.SelectMany((Object x) => new Object[] { x, (x as HDAdditionalLightData).legacyLight }).ToArray();
-                Undo.RecordObjects(undoObjects, "Change light area shape");
-                var objects = serializedObject.targetObjects;
-                for (int index = 0; index < objects.Length; ++index)
-                    (objects[index] as HDAdditionalLightData).areaLightShape = value;
-                serializedObject.Update();
-            }
-        }
-
-        bool haveMultipleAreaLightShapeValue
-        {
-            get
-            {
-                var objects = serializedObject.targetObjects;
-                AreaLightShape value = (objects[0] as HDAdditionalLightData).areaLightShape;
-                for (int index = 1; index < objects.Length; ++index)
-                    if (value != (objects[index] as HDAdditionalLightData).areaLightShape)
-                        return true;
-                return false;
-            }
-        }
-
-        // This scope is here mainly to keep pointLightHDType and areaLightShapeProperty isolated
-        public struct AreaLightShapeEditionScope : System.IDisposable
-        {
-            public AreaLightShapeEditionScope(Rect rect, GUIContent label, SerializedHDLight serialized)
-            {
-                EditorGUI.BeginProperty(rect, label, serialized.pointLightHDType);
-                EditorGUI.BeginProperty(rect, label, serialized.settings.lightType);
-                EditorGUI.BeginProperty(rect, label, serialized.areaLightShapeProperty);
-            }
-
-            void System.IDisposable.Dispose()
-            {
-                EditorGUI.EndProperty();
-                EditorGUI.EndProperty();
-                EditorGUI.EndProperty();
-            }
-        }
 
         struct AreaLightEmissiveMeshEditionScope : System.IDisposable
         {
@@ -317,21 +253,16 @@ namespace UnityEditor.Rendering.HighDefinition
 
             using (var o = new PropertyFetcher<HDAdditionalLightData>(serializedObject))
             {
-                intensity = o.Find("m_Intensity");
-                enableSpotReflector = o.Find("m_EnableSpotReflector");
-                luxAtDistance = o.Find("m_LuxAtDistance");
                 spotInnerPercent = o.Find("m_InnerSpotPercent");
                 spotIESCutoffPercent = o.Find("m_SpotIESCutoffPercent");
                 lightDimmer = o.Find("m_LightDimmer");
                 volumetricDimmer = o.Find("m_VolumetricDimmer");
                 volumetricFadeDistance = o.Find("m_VolumetricFadeDistance");
-                lightUnit = o.Find("m_LightUnit");
                 displayAreaLightEmissiveMesh = o.Find("m_DisplayAreaLightEmissiveMesh");
                 fadeDistance = o.Find("m_FadeDistance");
                 affectDiffuse = o.Find("m_AffectDiffuse");
                 affectSpecular = o.Find("m_AffectSpecular");
                 nonLightmappedOnly = o.Find("m_NonLightmappedOnly");
-                spotLightShape = o.Find("m_SpotLightShape");
                 shapeWidth = o.Find("m_ShapeWidth");
                 shapeHeight = o.Find("m_ShapeHeight");
                 barnDoorAngle = o.Find("m_BarnDoorAngle");
@@ -349,18 +280,13 @@ namespace UnityEditor.Rendering.HighDefinition
                 iesPoint = o.Find("m_IESPoint");
                 iesSpot = o.Find("m_IESSpot");
                 includeForRayTracing = o.Find("m_IncludeForRayTracing");
+                includeForPathTracing = o.Find("m_IncludeForPathTracing");
                 areaLightShadowCone = o.Find("m_AreaLightShadowCone");
                 useCustomSpotLightShadowCone = o.Find("m_UseCustomSpotLightShadowCone");
                 customSpotLightShadowCone = o.Find("m_CustomSpotLightShadowCone");
                 useScreenSpaceShadows = o.Find("m_UseScreenSpaceShadows");
                 interactsWithSky = o.Find("m_InteractsWithSky");
                 angularDiameter = o.Find("m_AngularDiameter");
-                flareSize = o.Find("m_FlareSize");
-                flareFalloff = o.Find("m_FlareFalloff");
-                flareTint = o.Find("m_FlareTint");
-                surfaceTexture = o.Find("m_SurfaceTexture");
-                surfaceTint = o.Find("m_SurfaceTint");
-                distance = o.Find("m_Distance");
                 useRayTracedShadows = o.Find("m_UseRayTracedShadows");
                 numRayTracingSamples = o.Find("m_NumRayTracingSamples");
                 filterTracedShadow = o.Find("m_FilterTracedShadow");
@@ -374,6 +300,38 @@ namespace UnityEditor.Rendering.HighDefinition
                 evsmVarianceBias = o.Find("m_EvsmVarianceBias");
                 evsmLightLeakBias = o.Find("m_EvsmLightLeakBias");
                 evsmBlurPasses = o.Find("m_EvsmBlurPasses");
+                dirLightPCSSMaxPenumbraSize = o.Find("m_DirLightPCSSMaxPenumbraSize");
+                dirLightPCSSMaxSamplingDistance = o.Find("m_DirLightPCSSMaxSamplingDistance");
+                dirLightPCSSMinFilterSizeTexels = o.Find("m_DirLightPCSSMinFilterSizeTexels");
+                dirLightPCSSMinFilterMaxAngularDiameter = o.Find("m_DirLightPCSSMinFilterMaxAngularDiameter");
+                dirLightPCSSBlockerSearchAngularDiameter = o.Find("m_DirLightPCSSBlockerSearchAngularDiameter");
+                dirLightPCSSBlockerSamplingClumpExponent = o.Find("m_DirLightPCSSBlockerSamplingClumpExponent");
+                dirLightPCSSBlockerSampleCount = o.Find("m_DirLightPCSSBlockerSampleCount");
+                dirLightPCSSFilterSampleCount = o.Find("m_DirLightPCSSFilterSampleCount");
+
+                // Celestial Body
+                diameterOverride = o.Find(x => x.diameterOverride);
+                diameterMultiplier = o.Find(x => x.diameterMultiplier);
+                diameterMultiplerMode = o.Find(x => x.diameterMultiplerMode);
+
+                distance = o.Find("m_Distance");
+
+                surfaceTexture = o.Find(x => x.surfaceTexture);
+                surfaceTint = o.Find(x => x.surfaceTint);
+
+                shadingSource = o.Find(x => x.celestialBodyShadingSource);
+                sunLightOverride = o.Find(x => x.sunLightOverride);
+
+                sunColor = o.Find(x => x.sunColor);
+                sunIntensity = o.Find(x => x.sunIntensity);
+                phase = o.Find(x => x.moonPhase);
+                phaseRotation = o.Find(x => x.moonPhaseRotation);
+                earthshine = o.Find(x => x.earthshine);
+
+                flareSize = o.Find(x => x.flareSize);
+                flareFalloff = o.Find(x => x.flareFalloff);
+                flareTint = o.Find(x => x.flareTint);
+                flareMultiplier = o.Find(x => x.flareMultiplier);
 
                 // Moment light
                 lightAngle = o.Find("m_LightAngle");
@@ -405,10 +363,6 @@ namespace UnityEditor.Rendering.HighDefinition
 
                 slopeBias = o.Find("m_SlopeBias");
                 normalBias = o.Find("m_NormalBias");
-
-                // private references for prefab handling
-                pointLightHDType = o.Find("m_PointlightHDType");
-                areaLightShapeProperty = o.Find("m_AreaLightShape");
 
                 // emission mesh
                 areaLightEmissiveMeshCastShadow = o.Find("m_AreaLightEmissiveMeshShadowCastingMode");
@@ -484,5 +438,10 @@ namespace UnityEditor.Rendering.HighDefinition
         }
 
         public void Apply() => ApplyInternal(withDeportedEmissiveMeshData: true);
+
+        public bool HasMultipleLightTypes(Editor owner)
+        {
+            return owner.serializedObject.FindProperty("m_Type").hasMultipleDifferentValues;
+        }
     }
 }

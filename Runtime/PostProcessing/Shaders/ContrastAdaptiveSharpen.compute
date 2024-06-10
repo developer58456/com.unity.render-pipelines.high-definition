@@ -26,7 +26,6 @@ float4 _HDROutputParams;
 #define _PaperWhite               _HDROutputParams.z
 #define _OneOverPaperWhite        _HDROutputParams.w
 
-
 TEXTURE2D_X(_InputTexture);
 RW_TEXTURE2D_X(float4, _OutputTexture);
 

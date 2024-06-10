@@ -38,12 +38,12 @@ namespace UnityEditor.Rendering.HighDefinition
             MaterialUpgrader.UpgradeSelection(GetHDUpgraders(), "Upgrade to HDRP Material");
         }
 
-        [MenuItem("Edit/Rendering/Materials/Convert Scene Terrains to HDRP Terrains", priority = CoreUtils.Priorities.editMenuPriority + 2)]
+        [MenuItem("Edit/Rendering/Materials/Convert Scene Terrains to HDRP Terrains", priority = CoreUtils.Priorities.editMenuPriority + 3)]
         static void UpgradeSceneTerrainsToHighDefinitionTerrains(MenuCommand menuCommand)
         {
             var LegacyDefaultTerrainMat = AssetDatabase.GetBuiltinExtraResource<Material>("Default-Terrain-Standard.mat");
             var HDRPTerrainMat = AssetDatabase.LoadAssetAtPath<Material>("Packages/com.unity.render-pipelines.high-definition/Runtime/RenderPipelineResources/Material/DefaultHDTerrainMaterial.mat");
-            var terrainArray = UnityEngine.GameObject.FindObjectsOfType<Terrain>();
+            var terrainArray = UnityEngine.GameObject.FindObjectsByType<Terrain>(FindObjectsSortMode.InstanceID);
 
             if (terrainArray.Length == 0)
             {

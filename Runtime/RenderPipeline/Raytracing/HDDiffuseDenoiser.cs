@@ -1,5 +1,5 @@
 using UnityEngine.Experimental.Rendering;
-using UnityEngine.Experimental.Rendering.RenderGraphModule;
+using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering;
 
 namespace UnityEngine.Rendering.HighDefinition
@@ -12,7 +12,7 @@ namespace UnityEngine.Rendering.HighDefinition
         // Runtime Initialization data
         bool m_DenoiserInitialized;
         Texture2D m_OwnenScrambledTexture;
-        ComputeBuffer m_PointDistribution;
+        GraphicsBuffer m_PointDistribution;
 
         // Kernels that may be required
         int m_BilateralFilterSingleKernel;
@@ -20,10 +20,10 @@ namespace UnityEngine.Rendering.HighDefinition
         int m_GatherSingleKernel;
         int m_GatherColorKernel;
 
-        public void Init(HDRenderPipelineRuntimeResources rpResources, HDRenderPipeline renderPipeline)
+        public void Init(HDRenderPipeline renderPipeline)
         {
             // Keep track of the resources
-            m_DiffuseDenoiser = rpResources.shaders.diffuseDenoiserCS;
+            m_DiffuseDenoiser = renderPipeline.runtimeShaders.diffuseDenoiserCS;
 
             // Grab all the kernels we'll eventually need
             m_BilateralFilterSingleKernel = m_DiffuseDenoiser.FindKernel("BilateralFilterSingle");
@@ -33,8 +33,8 @@ namespace UnityEngine.Rendering.HighDefinition
 
             // Data required for the online initialization
             m_DenoiserInitialized = false;
-            m_OwnenScrambledTexture = rpResources.textures.owenScrambledRGBATex;
-            m_PointDistribution = new ComputeBuffer(16 * 4, 2 * sizeof(float));
+            m_OwnenScrambledTexture = renderPipeline.runtimeTextures.owenScrambledRGBATex;
+            m_PointDistribution = new GraphicsBuffer(GraphicsBuffer.Target.Structured, 16 * 4, 2 * sizeof(float));
         }
 
         public void Release()
@@ -56,14 +56,14 @@ namespace UnityEngine.Rendering.HighDefinition
             public bool halfResolutionFilter;
             public bool jitterFilter;
             public int frameIndex;
-            public bool fullResolutionInput;
+            public float resolutionMultiplier;
 
             // Kernels
             public int bilateralFilterKernel;
             public int gatherKernel;
 
             // Other parameters
-            public ComputeBufferHandle pointDistribution;
+            public BufferHandle pointDistribution;
             public ComputeShader diffuseDenoiserCS;
 
             public Texture2D owenScrambledTexture;
@@ -80,7 +80,7 @@ namespace UnityEngine.Rendering.HighDefinition
             public float kernelSize;
             public bool halfResolutionFilter;
             public bool jitterFilter;
-            public bool fullResolutionInput;
+            public float resolutionMultiplier;
         }
 
         public TextureHandle Denoise(RenderGraph renderGraph, HDCamera hdCamera, DiffuseDenoiserParameters denoiserParams,
@@ -97,16 +97,8 @@ namespace UnityEngine.Rendering.HighDefinition
                 passData.owenScrambledTexture = m_OwnenScrambledTexture;
 
                 // Camera parameters
-                if (denoiserParams.fullResolutionInput)
-                {
-                    passData.texWidth = hdCamera.actualWidth;
-                    passData.texHeight = hdCamera.actualHeight;
-                }
-                else
-                {
-                    passData.texWidth = hdCamera.actualWidth / 2;
-                    passData.texHeight = hdCamera.actualHeight / 2;
-                }
+                passData.texWidth =  (int)Mathf.Floor(hdCamera.actualWidth / denoiserParams.resolutionMultiplier);
+                passData.texHeight = (int)Mathf.Floor(hdCamera.actualHeight / denoiserParams.resolutionMultiplier);
                 passData.viewCount = hdCamera.viewCount;
 
                 // Parameters
@@ -115,7 +107,7 @@ namespace UnityEngine.Rendering.HighDefinition
                 passData.halfResolutionFilter = denoiserParams.halfResolutionFilter;
                 passData.jitterFilter = denoiserParams.jitterFilter;
                 passData.frameIndex = HDRenderPipeline.RayTracingFrameIndex(hdCamera);
-                passData.fullResolutionInput = denoiserParams.fullResolutionInput;
+                passData.resolutionMultiplier = denoiserParams.resolutionMultiplier;
 
                 // Kernels
                 passData.bilateralFilterKernel = denoiserParams.singleChannel ? m_BilateralFilterSingleKernel : m_BilateralFilterColorKernel;
@@ -124,7 +116,7 @@ namespace UnityEngine.Rendering.HighDefinition
                 // Other parameters
                 passData.diffuseDenoiserCS = m_DiffuseDenoiser;
 
-                passData.pointDistribution = builder.ReadComputeBuffer(renderGraph.ImportComputeBuffer(m_PointDistribution));
+                passData.pointDistribution = builder.ReadBuffer(renderGraph.ImportBuffer(m_PointDistribution));
                 passData.depthStencilBuffer = builder.ReadTexture(depthBuffer);
                 passData.normalBuffer = builder.ReadTexture(normalBuffer);
                 passData.noisyBuffer = builder.ReadTexture(noisyBuffer);
@@ -158,12 +150,12 @@ namespace UnityEngine.Rendering.HighDefinition
                         ctx.cmd.SetComputeTextureParam(data.diffuseDenoiserCS, data.bilateralFilterKernel, HDShaderIDs._DenoiseOutputTextureRW, data.halfResolutionFilter ? data.intermediateBuffer : data.outputBuffer);
                         ctx.cmd.SetComputeIntParam(data.diffuseDenoiserCS, HDShaderIDs._HalfResolutionFilter, data.halfResolutionFilter ? 1 : 0);
                         ctx.cmd.SetComputeFloatParam(data.diffuseDenoiserCS, HDShaderIDs._PixelSpreadAngleTangent, data.pixelSpreadTangent);
+                        ctx.cmd.SetComputeVectorParam(data.diffuseDenoiserCS, HDShaderIDs._DenoiserResolutionMultiplierVals, new Vector4(data.resolutionMultiplier, 1.0f / data.resolutionMultiplier, 0.0f, 0.0f));
                         if (data.jitterFilter)
                             ctx.cmd.SetComputeIntParam(data.diffuseDenoiserCS, HDShaderIDs._JitterFramePeriod, (data.frameIndex % 4));
                         else
                             ctx.cmd.SetComputeIntParam(data.diffuseDenoiserCS, HDShaderIDs._JitterFramePeriod, -1);
 
-                        CoreUtils.SetKeyword(ctx.cmd, "FULL_RESOLUTION_INPUT", data.fullResolutionInput);
                         ctx.cmd.DispatchCompute(data.diffuseDenoiserCS, data.bilateralFilterKernel, numTilesX, numTilesY, data.viewCount);
 
                         if (data.halfResolutionFilter)
@@ -173,7 +165,6 @@ namespace UnityEngine.Rendering.HighDefinition
                             ctx.cmd.SetComputeTextureParam(data.diffuseDenoiserCS, data.gatherKernel, HDShaderIDs._DenoiseOutputTextureRW, data.outputBuffer);
                             ctx.cmd.DispatchCompute(data.diffuseDenoiserCS, data.gatherKernel, numTilesX, numTilesY, data.viewCount);
                         }
-                        CoreUtils.SetKeyword(ctx.cmd, "FULL_RESOLUTION_INPUT", false);
                     });
                 return passData.outputBuffer;
             }

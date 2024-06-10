@@ -1,6 +1,6 @@
 using System;
 using UnityEngine.Experimental.Rendering;
-using UnityEngine.Experimental.Rendering.RenderGraphModule;
+using UnityEngine.Rendering.RenderGraphModule;
 using System.Collections.Generic;
 
 #if UNITY_EDITOR
@@ -36,20 +36,25 @@ namespace UnityEngine.Rendering.HighDefinition
     }
 
     /// <summary>
-    /// Options for per-sample noise index calculation per sample in path tracing.
+    /// Options for noise index calculation per sample in path tracing.
     /// </summary>
     public enum SeedMode
     {
 
         /// <summary>
-        /// The non repeating mode bases the seed on the camera frame count. This avoids screen-based artefacts when using Path Tracing with the Recorder package. 
+        /// The non repeating mode bases the seed on the camera frame count. This avoids screen-based artefacts when using Path Tracing with the Recorder package.
         /// </summary>
         NonRepeating,
 
         /// <summary>
-        /// The repeating mode resets the seed to zero when the accumulation of samples resets. This allows for easier debugging through deterministic behaviour per frame.
+        /// The repeating mode resets the seed to zero when the accumulation of samples resets. This allows for easier debugging through deterministic behavior per frame.
         /// </summary>
-        Repeating
+        Repeating,
+
+        /// <summary>
+        /// The custom mode allows you to choose the seed through a script by setting the customSeed parameter on the PathTracing volume override.
+        /// </summary>
+        Custom
     }
 
 #if UNITY_64 && ENABLE_UNITY_DENOISING_PLUGIN && (UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN)
@@ -111,8 +116,9 @@ namespace UnityEngine.Rendering.HighDefinition
     /// <summary>
     /// A volume component that holds settings for the Path Tracing effect.
     /// </summary>
-    [Serializable, VolumeComponentMenuForRenderPipeline("Ray Tracing/Path Tracing (Preview)", typeof(HDRenderPipeline))]
-    [HDRPHelpURLAttribute("Ray-Tracing-Path-Tracing")]
+    [Serializable, VolumeComponentMenu("Ray Tracing/Path Tracing")]
+    [SupportedOnRenderPipeline(typeof(HDRenderPipelineAsset))]
+    [HDRPHelpURL("Ray-Tracing-Path-Tracing")]
     public sealed class PathTracing : VolumeComponent
     {
         /// <summary>
@@ -173,6 +179,12 @@ namespace UnityEngine.Rendering.HighDefinition
         public BoolParameter temporal = new BoolParameter(false);
 
         /// <summary>
+        /// Enables separate denoising of the volumetrics scattering results, but with extra GPU memory usage.
+        /// </summary>
+        [Tooltip("Enables the denoising of volumetric fog in a separate pass. This gives a smoother result at the expense of extra GPU memory usage. The extra pass does not take into account the temporal parameter of the denoiser.")]
+        public BoolParameter separateVolumetrics = new BoolParameter(false);
+
+        /// <summary>
         /// Controls whether denoising will be asynchronous (non-blocking) for the scene view camera.
         /// </summary>
         public BoolParameter asyncDenoising = new BoolParameter(true);
@@ -195,14 +207,20 @@ namespace UnityEngine.Rendering.HighDefinition
         /// Defines the mode used to calculate the noise index.
         /// </summary>
         [Tooltip("Defines the mode used to calculate the noise index used per path tracing sample.")]
-        public SeedModeParameter seedMode = new SeedModeParameter(SeedMode.Repeating);
+        public SeedModeParameter seedMode = new SeedModeParameter(SeedMode.NonRepeating);
+
+        /// <summary>
+        /// Defines the noise index to be used in the custom SeedMode. This value should be set through a script and is ignored in other modes.
+        /// </summary>
+        [HideInInspector]
+        public IntParameter customSeed = new IntParameter(0);
 
         /// <summary>
         /// Default constructor for the path tracing volume component.
         /// </summary>
         public PathTracing()
         {
-            displayName = "Path Tracing (Preview)";
+            displayName = "Path Tracing";
         }
     }
 
@@ -213,14 +231,11 @@ namespace UnityEngine.Rendering.HighDefinition
 #if UNITY_EDITOR
         uint  m_CacheMaxIteration = 0;
 
-#if UNITY_64 && ENABLE_UNITY_DENOISING_PLUGIN && (UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN)
-        HDDenoiserType m_CachedDenoiserType = HDDenoiserType.None;
-#endif
-
 #endif // UNITY_EDITOR
         uint m_CacheLightCount = 0;
         int m_CameraID = 0;
         int m_SkyHash = -1;
+        int m_DebugMaterialOverrideHash = -1;
         bool m_RenderSky = true;
 
         TextureHandle m_FrameTexture;       // Stores the per-pixel results of path tracing for one frame
@@ -349,9 +364,6 @@ namespace UnityEngine.Rendering.HighDefinition
         private void InitPathTracingSettingsCache()
         {
             m_CacheMaxIteration = (uint)m_PathTracingSettings.maximumSamples.value;
-#if UNITY_64 && ENABLE_UNITY_DENOISING_PLUGIN && (UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN)
-            m_CachedDenoiserType = m_PathTracingSettings.denoising.value;
-#endif
         }
 
         private void OnSceneEdit()
@@ -371,25 +383,6 @@ namespace UnityEngine.Rendering.HighDefinition
 #endif
                 doPathTracingReset = false;
             }
-
-#if UNITY_64 && ENABLE_UNITY_DENOISING_PLUGIN && (UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN)
-            // If we just change the denoiser type, we don't necessarily want to reset iteration
-            if (m_PathTracingSettings && m_CachedDenoiserType != m_PathTracingSettings.denoising.value)
-            {
-                if (m_PathTracingSettings.denoising.value == HDDenoiserType.None && m_PathTracingSettings.useAOVs == true)
-                {
-                    // When denoising is off we don't accumulate AOVs. For this reason, if we re-enable denoising and AOVs are enabled, we need to always re-accumulate
-                    // Note: this is called from the undo callback, so m_PathTracingSettings is the one that is going to be replaced/updated.
-                    doPathTracingReset = true;
-                }
-                else
-                {
-                    doPathTracingReset = false;
-                    m_SubFrameManager.ResetDenoisingStatus();
-                }
-                m_CachedDenoiserType = m_PathTracingSettings.denoising.value;
-            }
-#endif
 
             if (doPathTracingReset)
                 ResetPathTracing();
@@ -471,10 +464,18 @@ namespace UnityEngine.Rendering.HighDefinition
                 isSceneDirty = true;
             }
 
-            // Check lights dirtiness
-            if (m_CacheLightCount != m_RayTracingLights.lightCount)
+            // Check debug material override dirtiness
+            int debugMaterialOverrideHash = m_CurrentDebugDisplaySettings.data.lightingDebugSettings.ComputeOverrideHash();
+            if (debugMaterialOverrideHash != m_DebugMaterialOverrideHash)
             {
-                m_CacheLightCount = (uint)m_RayTracingLights.lightCount;
+                m_DebugMaterialOverrideHash = debugMaterialOverrideHash;
+                isSceneDirty = true;
+            }
+
+            // Check lights dirtiness
+            if (m_CacheLightCount != m_WorldLights.totalLighttCount)
+            {
+                m_CacheLightCount = (uint)m_WorldLights.totalLighttCount;
                 isSceneDirty = true;
             }
 
@@ -539,21 +540,25 @@ namespace UnityEngine.Rendering.HighDefinition
             public TextureHandle albedoAOV;
             public TextureHandle normalAOV;
             public TextureHandle motionVectorAOV;
+            public bool enableVolumetricScattering;
+            public TextureHandle volumetricScatteringAOV;
+
+            public bool enableDecals;
 
 #if ENABLE_SENSOR_SDK
             public Action<UnityEngine.Rendering.CommandBuffer> prepareDispatchRays;
 #endif
         }
 
-        void RenderPathTracingFrame(RenderGraph renderGraph, HDCamera hdCamera, in CameraData cameraData, TextureHandle pathTracingBuffer, TextureHandle albedo, TextureHandle normal, TextureHandle motionVector)
+        void RenderPathTracingFrame(RenderGraph renderGraph, HDCamera hdCamera, in CameraData cameraData, TextureHandle pathTracingBuffer, TextureHandle albedo, TextureHandle normal, TextureHandle motionVector, TextureHandle volumetricScattering)
         {
             using (var builder = renderGraph.AddRenderPass<RenderPathTracingData>("Render Path Tracing Frame", out var passData))
             {
 #if ENABLE_SENSOR_SDK
-                passData.shader = hdCamera.pathTracingShaderOverride ? hdCamera.pathTracingShaderOverride : m_GlobalSettings.renderPipelineRayTracingResources.pathTracingRT;
+                passData.shader = hdCamera.pathTracingShaderOverride ? hdCamera.pathTracingShaderOverride : rayTracingResources.pathTracingRT;
                 passData.prepareDispatchRays = hdCamera.prepareDispatchRays;
 #else
-                passData.shader = m_GlobalSettings.renderPipelineRayTracingResources.pathTracingRT;
+                passData.shader = rayTracingResources.pathTracingRT;
 #endif
                 passData.cameraData = cameraData;
                 passData.ditheredTextureSet = GetBlueNoiseManager().DitheredTextureSet256SPP();
@@ -568,6 +573,7 @@ namespace UnityEngine.Rendering.HighDefinition
                 passData.lightCluster = RequestLightCluster();
 
                 passData.shaderVariablesRaytracingCB = m_ShaderVariablesRayTracingCB;
+                // This doesn't actually do anything in the path tracing shaders
                 passData.shaderVariablesRaytracingCB._RaytracingNumSamples = (int)m_SubFrameManager.subFrameCount;
                 passData.shaderVariablesRaytracingCB._RaytracingMinRecursion = m_PathTracingSettings.minimumDepth.value;
 #if NO_RAY_RECURSION
@@ -577,7 +583,7 @@ namespace UnityEngine.Rendering.HighDefinition
 #endif
                 passData.shaderVariablesRaytracingCB._RaytracingIntensityClamp = m_PathTracingSettings.maximumIntensity.value;
                 int seed = m_PathTracingSettings.seedMode == SeedMode.Repeating ? (int)cameraData.currentIteration : (((int)hdCamera.GetCameraFrameCount() - 1) % m_PathTracingSettings.maximumSamples.max);
-                passData.shaderVariablesRaytracingCB._RaytracingSampleIndex = seed;
+                passData.shaderVariablesRaytracingCB._RaytracingSampleIndex = m_PathTracingSettings.seedMode == SeedMode.Custom ? m_PathTracingSettings.customSeed.value : seed;
 
                 passData.skyReflection = m_SkyManager.GetSkyReflection(hdCamera);
                 passData.skyBG = builder.ReadTexture(m_SkyBGTexture);
@@ -594,6 +600,13 @@ namespace UnityEngine.Rendering.HighDefinition
                     passData.normalAOV = builder.WriteTexture(normal);
                     passData.motionVectorAOV = builder.WriteTexture(motionVector);
                 }
+                passData.enableVolumetricScattering = volumetricScattering.IsValid();
+                if (passData.enableVolumetricScattering)
+                {
+                    passData.volumetricScatteringAOV = builder.WriteTexture(volumetricScattering);
+                }
+
+                passData.enableDecals = hdCamera.frameSettings.IsEnabled(FrameSettingsField.Decals);
 
                 builder.SetRenderFunc(
                     (RenderPathTracingData data, RenderGraphContext ctx) =>
@@ -612,7 +625,6 @@ namespace UnityEngine.Rendering.HighDefinition
 
                         // LightLoop data
                         ctx.cmd.SetGlobalBuffer(HDShaderIDs._RaytracingLightCluster, data.lightCluster.GetCluster());
-                        ctx.cmd.SetGlobalBuffer(HDShaderIDs._LightDatasRT, data.lightCluster.GetLightDatas());
 
                         // Global sky data
                         ctx.cmd.SetGlobalInt(HDShaderIDs._PathTracingCameraSkyEnabled, data.cameraData.skyEnabled ? 1 : 0);
@@ -632,6 +644,10 @@ namespace UnityEngine.Rendering.HighDefinition
                         ctx.cmd.SetRayTracingVectorParam(data.shader, HDShaderIDs._PathTracingDoFParameters, data.dofParameters);
                         ctx.cmd.SetRayTracingVectorParam(data.shader, HDShaderIDs._PathTracingTilingParameters, data.tilingParameters);
 
+
+                        if (data.enableDecals)
+                            DecalSystem.instance.SetAtlas(ctx.cmd); // for clustered decals
+
 #if ENABLE_SENSOR_SDK
                         // SensorSDK can do its own camera rays generation
                         data.prepareDispatchRays?.Invoke(ctx.cmd);
@@ -644,9 +660,16 @@ namespace UnityEngine.Rendering.HighDefinition
                             ctx.cmd.SetRayTracingTextureParam(data.shader, HDShaderIDs._NormalAOV, data.normalAOV);
                             ctx.cmd.SetRayTracingTextureParam(data.shader, HDShaderIDs._MotionVectorAOV, data.motionVectorAOV);
                         }
+                        if (data.enableVolumetricScattering)
+                        {
+                            ctx.cmd.SetRayTracingTextureParam(data.shader, HDShaderIDs._VolumetricScatteringAOV, data.volumetricScatteringAOV);
+                        }
 
                         // Run the computation
-                        ctx.cmd.DispatchRays(data.shader, data.enableAOVs ? "RayGenAOV" : "RayGen", (uint)data.width, (uint)data.height, 1);
+                        var shaderName = data.enableAOVs ?
+                                         (data.enableVolumetricScattering ? "RayGenVolScatteringAOV" : "RayGenAOV") :
+                                         (data.enableVolumetricScattering ? "RayGenVolScattering" : "RayGen");
+                        ctx.cmd.DispatchRays(data.shader, shaderName, (uint)data.width, (uint)data.height, 1);
                     });
             }
         }
@@ -679,12 +702,12 @@ namespace UnityEngine.Rendering.HighDefinition
         // Prepares data (CDF) to be able to importance sample the sky afterwards
         void RenderSkySamplingData(RenderGraph renderGraph, HDCamera hdCamera)
         {
-            if (!m_GlobalSettings.renderPipelineRayTracingResources.pathTracingSkySamplingDataCS)
+            if (!rayTracingResources.pathTracingSkySamplingDataCS)
                 return;
 
             using (var builder = renderGraph.AddRenderPass<RenderSkySamplingPassData>("Render Sky Sampling Data for Path Tracing", out var passData))
             {
-                passData.shader = m_GlobalSettings.renderPipelineRayTracingResources.pathTracingSkySamplingDataCS;
+                passData.shader = rayTracingResources.pathTracingSkySamplingDataCS;
                 passData.k0 = passData.shader.FindKernel("ComputeCDF");
                 passData.k1 = passData.shader.FindKernel("ComputeMarginal");
                 passData.size = m_skySamplingSize;
@@ -721,15 +744,17 @@ namespace UnityEngine.Rendering.HighDefinition
             m_PathTracingSettings = hdCamera.volumeStack.GetComponent<PathTracing>();
 
             // Check the validity of the state before moving on with the computation
-            if (!m_GlobalSettings.renderPipelineRayTracingResources.pathTracingRT || !m_PathTracingSettings.enable.value)
+            if (!rayTracingResources.pathTracingRT || !m_PathTracingSettings.enable.value)
                 return TextureHandle.nullHandle;
 
             var motionVector = TextureHandle.nullHandle;
             var albedo = TextureHandle.nullHandle;
             var normal = TextureHandle.nullHandle;
+            var volumetricScattering = TextureHandle.nullHandle;
 
 #if UNITY_64 && ENABLE_UNITY_DENOISING_PLUGIN && (UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN)
             bool needsAOVs = m_PathTracingSettings.denoising.value != HDDenoiserType.None && (m_PathTracingSettings.useAOVs.value || m_PathTracingSettings.temporal.value);
+            bool needsVolumetricFogAOV = m_PathTracingSettings.denoising.value != HDDenoiserType.None && m_PathTracingSettings.separateVolumetrics.value;
 
             if (needsAOVs)
             {
@@ -750,15 +775,32 @@ namespace UnityEngine.Rendering.HighDefinition
                 normal = renderGraph.CreateTexture(aovDesc);
             }
 
+            if (needsVolumetricFogAOV)
+            {
+                TextureDesc aovDesc = new TextureDesc(hdCamera.actualWidth, hdCamera.actualHeight, true, true)
+                {
+                    colorFormat = GraphicsFormat.R32G32B32A32_SFloat,
+                    bindTextureMS = false,
+                    msaaSamples = MSAASamples.None,
+                    clearBuffer = true,
+                    clearColor = Color.black,
+                    enableRandomWrite = true,
+                    useMipMap = false,
+                    autoGenerateMips = false,
+                    name = "Path traced volumetrics AOV buffer"
+                };
+                volumetricScattering = renderGraph.CreateTexture(aovDesc);
+            }
             pathTracedAOVs.Clear();
 #endif
 
             int camID = hdCamera.camera.GetInstanceID();
             CameraData camData = m_SubFrameManager.GetCameraData(camID);
 
+            // Set up the subframe manager for correct accumulation in case of multiframe accumulation
             // Check if the camera has a valid history buffer and if not reset the accumulation.
             // This can happen if a script disables and re-enables the camera (case 1337843).
-            if (!hdCamera.isPersistent && hdCamera.GetCurrentFrameRT((int)HDCameraFrameHistoryType.PathTracing) == null)
+            if (!hdCamera.isPersistent && hdCamera.GetCurrentFrameRT((int)HDCameraFrameHistoryType.PathTracingOutput) == null)
                 m_SubFrameManager.Reset(camID);
 
             if (!m_SubFrameManager.isRecording)
@@ -771,18 +813,16 @@ namespace UnityEngine.Rendering.HighDefinition
             }
             else
             {
-                // When recording, as be bypass dirtiness checks which update camData, we need to indicate whether we want to render a sky or not
+                // When recording, as we bypass dirtiness checks which update camData, we need to indicate whether we want to render a sky or not
                 camData.skyEnabled = (hdCamera.clearColorMode == HDAdditionalCameraData.ClearColorMode.Sky);
                 m_SubFrameManager.SetCameraData(camID, camData);
             }
 
-#if UNITY_HDRP_DXR_TESTS_DEFINE
-            if (Application.isPlaying)
+            if (!hdCamera.ActiveRayTracingAccumulation())
             {
                 camData.ResetIteration();
                 m_SubFrameManager.subFrameCount = 1;
             }
-#endif
 
             if (camData.currentIteration < m_SubFrameManager.subFrameCount)
             {
@@ -799,20 +839,25 @@ namespace UnityEngine.Rendering.HighDefinition
                     }
                 }
 
-                RenderPathTracingFrame(m_RenderGraph, hdCamera, camData, m_FrameTexture, albedo, normal, motionVector);
+                RenderPathTracingFrame(m_RenderGraph, hdCamera, camData, m_FrameTexture, albedo, normal, motionVector, volumetricScattering);
 
 #if UNITY_64 && ENABLE_UNITY_DENOISING_PLUGIN && (UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN)
                 bool denoise = m_PathTracingSettings.denoising.value != HDDenoiserType.None;
                 // Note: for now we enable AOVs when temporal is also enabled, because this seems to work better with Optix.
                 if (denoise && (m_PathTracingSettings.useAOVs.value || m_PathTracingSettings.temporal.value))
                 {
-                    pathTracedAOVs.Add(new Tuple<TextureHandle, HDCameraFrameHistoryType>(albedo, HDCameraFrameHistoryType.AlbedoAOV));
-                    pathTracedAOVs.Add(new Tuple<TextureHandle, HDCameraFrameHistoryType>(normal, HDCameraFrameHistoryType.NormalAOV));
+                    pathTracedAOVs.Add(new Tuple<TextureHandle, HDCameraFrameHistoryType>(albedo, HDCameraFrameHistoryType.PathTracingAlbedo));
+                    pathTracedAOVs.Add(new Tuple<TextureHandle, HDCameraFrameHistoryType>(normal, HDCameraFrameHistoryType.PathTracingNormal));
                 }
 
                 if (denoise && m_PathTracingSettings.temporal.value)
                 {
-                    pathTracedAOVs.Add(new Tuple<TextureHandle, HDCameraFrameHistoryType>(motionVector, HDCameraFrameHistoryType.MotionVectorAOV));
+                    pathTracedAOVs.Add(new Tuple<TextureHandle, HDCameraFrameHistoryType>(motionVector, HDCameraFrameHistoryType.PathTracingMotionVector));
+                }
+
+                if (denoise && m_PathTracingSettings.separateVolumetrics.value)
+                {
+                    pathTracedAOVs.Add(new Tuple<TextureHandle, HDCameraFrameHistoryType>(volumetricScattering, HDCameraFrameHistoryType.PathTracingVolumetricFog));
                 }
 #endif
             }

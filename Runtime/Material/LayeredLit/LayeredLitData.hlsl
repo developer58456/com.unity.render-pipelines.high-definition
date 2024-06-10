@@ -681,7 +681,10 @@ float3 ComputeMainBaseColorInfluence(float influenceMask, float3 baseColor0, flo
     // (baseColor - meanColor) + lerp(meanColor, baseColor0, inheritBaseColor) simplify to
     // saturate(influenceFactor * (baseColor0 - meanColor) + baseColor);
     // There is a special case when baseColor < meanColor to avoid getting negative values.
-    float3 factor = baseColor > meanColor ? (baseColor0 - meanColor) : (baseColor0 * baseColor / max(meanColor, 0.001) - baseColor); // max(to avoid divide by 0)
+    float3 factor = (baseColor0 - meanColor);
+    factor.x = baseColor.x > meanColor.x ? factor.x : (baseColor0.x * baseColor.x / max(meanColor.x, 0.001) - baseColor.x); // max(to avoid divide by 0)
+    factor.y = baseColor.y > meanColor.y ? factor.y : (baseColor0.y * baseColor.y / max(meanColor.y, 0.001) - baseColor.y);
+    factor.z = baseColor.z > meanColor.z ? factor.z : (baseColor0.z * baseColor.z / max(meanColor.z, 0.001) - baseColor.z);
     return influenceFactor * factor + baseColor;
 }
 #ifndef SHADER_STAGE_RAY_TRACING
@@ -772,7 +775,7 @@ void GetSurfaceAndBuiltinData(FragInputs input, float3 V, inout PositionInputs p
     surfaceData.metallic = SURFACEDATA_BLEND_SCALAR(surfaceData, metallic, weights);
     surfaceData.tangentWS = normalize(input.tangentToWorld[0].xyz); // The tangent is not normalize in tangentToWorld for mikkt. Tag: SURFACE_GRADIENT
     surfaceData.subsurfaceMask = SURFACEDATA_BLEND_SCALAR(surfaceData, subsurfaceMask, weights);
-    surfaceData.transmissionMask = SURFACEDATA_BLEND_SCALAR(surfaceData, transmissionMask, weights);
+    surfaceData.transmissionMask = SURFACEDATA_BLEND_VECTOR3(surfaceData, transmissionMask, weights);
     surfaceData.thickness = SURFACEDATA_BLEND_SCALAR(surfaceData, thickness, weights);
     surfaceData.diffusionProfileHash = SURFACEDATA_BLEND_DIFFUSION_PROFILE(surfaceData, diffusionProfileHash, weights); // We don't need the hash as we only use it to compute the diffusion profile index
 
@@ -834,14 +837,17 @@ void GetSurfaceAndBuiltinData(FragInputs input, float3 V, inout PositionInputs p
     bentNormalWS = surfaceData.normalWS;
 #endif
 
-#if defined(DEBUG_DISPLAY) && !defined(SHADER_STAGE_RAY_TRACING)
+#if defined(DEBUG_DISPLAY)
+#if !defined(SHADER_STAGE_RAY_TRACING)
+    // Mipmap mode debugging isn't supported with ray tracing as it relies on derivatives
     if (_DebugMipMapMode != DEBUGMIPMAPMODE_NONE)
     {
-        surfaceData.baseColor = GetTextureDataDebug(_DebugMipMapMode, layerTexCoord.base0.uv, _BaseColorMap0, _BaseColorMap0_TexelSize, _BaseColorMap0_MipInfo, surfaceData.baseColor);
+        surfaceData.baseColor = GET_TEXTURE_STREAMING_DEBUG(posInput.positionSS, input.texCoord0);
         surfaceData.metallic = 0;
     }
+#endif
 
-    // We need to call ApplyDebugToSurfaceData after filling the surfarcedata and before filling builtinData
+    // We need to call ApplyDebugToSurfaceData after filling the surfaceData and before filling builtinData
     // as it can modify attribute use for static lighting
     ApplyDebugToSurfaceData(input.tangentToWorld, surfaceData);
 #endif

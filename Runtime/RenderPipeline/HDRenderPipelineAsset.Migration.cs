@@ -14,7 +14,7 @@ namespace UnityEngine.Rendering.HighDefinition
     public partial class HDRenderPipelineAsset : IVersionable<HDRenderPipelineAsset.Version>, IMigratableAsset
     {
         // /!\ For each new version, you must now upgrade asset in HDRP_Runtime, HDRP_Performance and SRP_SmokeTest test project.
-        enum Version
+        internal enum Version
         {
             None,
             First,
@@ -37,7 +37,10 @@ namespace UnityEngine.Rendering.HighDefinition
             AddedHDRenderPipelineGlobalSettings,
             DecalSurfaceGradient,
             RemovalOfUpscaleFilter,
-            CombinedPlanarAndCubemapReflectionAtlases
+            CombinedPlanarAndCubemapReflectionAtlases,
+            APVByDefault,
+            MergeDitheringAndLODQualitySetting,
+            UpdatedUpscalers,
             // If you add more steps here, do not clear settings that are used for the migration to the HDRP Global Settings asset
         }
 
@@ -106,7 +109,8 @@ namespace UnityEngine.Rendering.HighDefinition
             MigrationStep.New(Version.ShadowFilteringVeryHighQualityRemoval, (HDRenderPipelineAsset data) =>
             {
                 ref var shadowInit = ref data.m_RenderPipelineSettings.hdShadowInitParams;
-                shadowInit.shadowFilteringQuality = shadowInit.shadowFilteringQuality > HDShadowFilteringQuality.High ? HDShadowFilteringQuality.High : shadowInit.shadowFilteringQuality;
+                shadowInit.punctualShadowFilteringQuality = shadowInit.punctualShadowFilteringQuality > HDShadowFilteringQuality.High ? HDShadowFilteringQuality.High : shadowInit.punctualShadowFilteringQuality;
+                shadowInit.directionalShadowFilteringQuality = shadowInit.directionalShadowFilteringQuality > HDShadowFilteringQuality.High ? HDShadowFilteringQuality.High : shadowInit.directionalShadowFilteringQuality;
             }),
             MigrationStep.New(Version.SeparateColorGradingAndTonemappingFrameSettings, (HDRenderPipelineAsset data) =>
             {
@@ -179,9 +183,6 @@ namespace UnityEngine.Rendering.HighDefinition
 #pragma warning disable 618 // Type or member is obsolete
                 data.m_ObsoleteDefaultVolumeProfile = null;
                 data.m_ObsoleteDefaultLookDevProfile = null;
-
-                data.m_ObsoleteRenderPipelineResources = null;
-                data.m_ObsoleteRenderPipelineRayTracingResources = null;
 
                 data.m_ObsoleteBeforeTransparentCustomPostProcesses = null;
                 data.m_ObsoleteBeforePostProcessCustomPostProcesses = null;
@@ -263,13 +264,53 @@ namespace UnityEngine.Rendering.HighDefinition
                 }
 
                 lightLoopSettings.maxCubeReflectionOnScreen = Mathf.Clamp(lightLoopSettings.maxEnvLightsOnScreen - lightLoopSettings.maxPlanarReflectionOnScreen, HDRenderPipeline.k_MaxCubeReflectionsOnScreen / 2, HDRenderPipeline.k_MaxCubeReflectionsOnScreen);
+            }),
 #pragma warning restore 618
+            MigrationStep.New(Version.APVByDefault, (HDRenderPipelineAsset data) =>
+            {
+#pragma warning disable 618 // Type or member is obsolete
+                if (!data.m_RenderPipelineSettings.oldSupportProbeVolume)
+                {
+                    data.m_RenderPipelineSettings.lightProbeSystem = RenderPipelineSettings.LightProbeSystem.LegacyLightProbes;
+                }
+
+                if (data.m_RenderPipelineSettings.oldSupportProbeVolume || data.m_RenderPipelineSettings.oldLightProbeSystem == RenderPipelineSettings.LightProbeSystem.AdaptiveProbeVolumes)
+                {
+                    data.m_RenderPipelineSettings.lightProbeSystem = RenderPipelineSettings.LightProbeSystem.AdaptiveProbeVolumes;
+                }
+            }),
+#pragma warning restore 618
+            MigrationStep.New(Version.MergeDitheringAndLODQualitySetting, (HDRenderPipelineAsset data) =>
+            {
+#pragma warning disable 618 // Type or member is obsolete
+                if (!data.m_RenderPipelineSettings.supportDitheringCrossFade)
+                    return;
+
+                QualitySettings.ForEach(() =>
+                {
+                    if (QualitySettings.renderPipeline == data)
+                    {
+                        QualitySettings.enableLODCrossFade = true;
+                    }
+                });
+            }),
+#pragma warning restore 618
+            MigrationStep.New(Version.UpdatedUpscalers, (HDRenderPipelineAsset data) =>
+            {
+                data.m_RenderPipelineSettings.dynamicResolutionSettings.advancedUpscalersByPriority.Clear();
+#pragma warning disable 618 // Type or member is obsolete
+                if(!data.m_RenderPipelineSettings.dynamicResolutionSettings.enableDLSS)
+                    return;
+
+                data.m_RenderPipelineSettings.dynamicResolutionSettings.enableDLSS = false;
+#pragma warning restore 618
+                data.m_RenderPipelineSettings.dynamicResolutionSettings.advancedUpscalersByPriority.Add(AdvancedUpscalers.DLSS);
             })
-            );
+        );
         #endregion
 
         [SerializeField]
-        Version m_Version = MigrationDescription.LastVersion<Version>();
+        internal Version m_Version = MigrationDescription.LastVersion<Version>();
         Version IVersionable<Version>.version { get => m_Version; set => m_Version = value; }
 
 #pragma warning disable 618 // Type or member is obsolete
@@ -302,14 +343,6 @@ namespace UnityEngine.Rendering.HighDefinition
         [SerializeField]
         [FormerlySerializedAs("m_RenderingPathDefaultRealtimeReflectionFrameSettings"), Obsolete("Moved from HDRPAsset to HDGlobal Settings")]
         internal FrameSettings m_ObsoleteRealtimeReflectionFrameSettingsMovedToDefaultSettings;
-
-        [SerializeField]
-        [FormerlySerializedAs("m_RenderPipelineResources"), Obsolete("Moved from HDRPAsset to HDGlobal Settings")]
-        internal HDRenderPipelineRuntimeResources m_ObsoleteRenderPipelineResources;
-        [SerializeField]
-        [FormerlySerializedAs("m_RenderPipelineRayTracingResources"), Obsolete("Moved from HDRPAsset to HDGlobal Settings")]
-        internal HDRenderPipelineRayTracingResources m_ObsoleteRenderPipelineRayTracingResources;
-
         [SerializeField]
         [FormerlySerializedAs("beforeTransparentCustomPostProcesses"), Obsolete("Moved from HDRPAsset to HDGlobal Settings")]
         internal List<string> m_ObsoleteBeforeTransparentCustomPostProcesses;
@@ -380,7 +413,7 @@ namespace UnityEngine.Rendering.HighDefinition
             => Migrate();
 
         bool IMigratableAsset.IsAtLastVersion()
-            => m_Version == MigrationDescription.LastVersion<Version>();
+            => m_Version >= MigrationDescription.LastVersion<Version>();
 
         internal bool IsVersionBelowAddedHDRenderPipelineGlobalSettings()
             => m_Version < Version.AddedHDRenderPipelineGlobalSettings;

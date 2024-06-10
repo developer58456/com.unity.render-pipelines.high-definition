@@ -17,7 +17,7 @@ In HDRP 14, the [Ray Tracing Settings](Ray-Tracing-Settings.md) volume includes 
 HDRP 14 introduces a new **Fullscreen** Material type in ShaderGraph.
 You can use Fullscreen shaders in fullscreen custom passes, custom post processes and C# scripting.
 
-For more details on how to use fulscreen shaders, see [FullScreen Shader Graph](Fullscreen-Shader-Graph.md).
+For more details on how to use fullscreen shaders, see [Create a fullscreen Shader Graph](create-a-fullscreen-material.md#create-fullscreen-shadergraph).
 
 #### Fullscreen Sample set
 
@@ -33,10 +33,9 @@ Each shader is associated with a prefab that demonstrates how to implement it in
 ### Transparency Material Sample Scene
 
 ![](Images/HDRP-MaterialSample-ShadowsTransparency.png)
-![](C:/UnitySrc/docs/main/Packages/com.unity.render-pipelines.high-definition/Documentation~/Images/HDRP-MaterialSample-StackingTransparency.png)
+![](Images/HDRP-MaterialSample-StackingTransparency.png)
 
 HDRP 14 includes new sample scenes that demonstrates transparent Materials using different rendering methods:
-
 - Rasterization.
 - [Ray Tracing](Ray-Tracing-Getting-Started.md).
 - [Path Tracing](Ray-Tracing-Path-Tracing.md)
@@ -56,18 +55,17 @@ HDRP 14 includes a set of industry-standard color monitors that you can use to c
 You can find these monitors in the Rendering Debugger window (menu: **Windows > Analysis > Rendering Debugger**) in the **Rendering** tab.
 
 - **Waveform**: Displays the full range of luma information in the render
-  ![](Images/new_waveform.png)
+![](Images/new_waveform.png)
 - **Parade**: Splits the image into red, green and blue separately
-  ![](Images/new_waveform_parade.png)
+![](Images/new_waveform_parade.png)
 - **Vectorscope**: Measures the overall range of hue and saturation within the image
-  ![](Images/new_vectorscope.png)
+![](Images/new_vectorscope.png)
 
 ### Denoising in Path Tracing
 
 ![](Images/Path-Tracing-Denoise-banner.png)
 
 HDRP 14 adds denoising for frames that use path tracing. You can choose from the following denoising methods:
-
 - Optix Denoiser.
 - Intel Open Image Denoise.
 
@@ -75,12 +73,12 @@ HDRP 14 adds denoising for frames that use path tracing. You can choose from the
 
 in HDRP 14, Local Volumetric Fog volume supports Materials you create in ShaderGraph.
 
-You can use this to create dynamic fog effects. For more information, see [Volumetric Material](Volumetric-Material.md)
+You can use this to create dynamic fog effects. For more information, see [Volumetric Material](create-a-fog-volume-shader.md)
 ![](Images/Aurora_Fog.png)
 
 ### Local Volumetric Fog blending
 
-HDRP 14 adds a **Blending mode** to the [Local Volumetric Fog](Local-Volumetric-Fog.md) component. You can use this property to create various effects, for example, to remove fog inside a house.
+HDRP 14 adds a **Blending mode** to the [Local Volumetric Fog](create-a-local-fog-effect.md) component. You can use this property to create various effects, for example, to remove fog inside a house.
 
 This version also adds a **Priority** property that you can use to control the order in which HDRP blends multiple volumes.
 
@@ -100,7 +98,7 @@ For more information, see [Screen Space Reflection](Override-Screen-Space-Reflec
 
 ### Diffusion Profile Scattering Distance
 
-HDRP 14 replaces the [Diffusion Profile](Diffusion-Profile.md) **Scattering Color** HDR color picker with an LDR color picker. The LDR color picker includes a **Multiplier** slider.
+HDRP 14 replaces the [Diffusion Profile](diffusion-profile-reference.md) **Scattering Color** HDR color picker with an LDR color picker. The LDR color picker includes a **Multiplier** slider.
 
 When you upgrade to HDRP 14, it automatically migrates any existing diffusion profiles.
 
@@ -111,10 +109,15 @@ When you upgrade to HDRP 14, it automatically migrates any existing diffusion pr
 HDRP 14 makes the following changes to diffusion profiles:
 
 - Renames **Diffusion Profile Override** to [**Diffusion Profile List**](Override-Diffusion-Profile.md).
+
 - Automatically migrates the components in a scene that uses a **Diffusion Profile List**. If you reference a Diffusion Profile override in a C# script, HDRP displays a warning in the Console window. This warning might stop your Project compiling in future HDRP versions. To resolve this warning, modify  your code to target the **Diffusion Profile List** component.
+
 - The **Diffusion Profile List** component interpolates in a different way from the **Diffusion Profile Override**. The Diffusion Profile override completely replaced the list of profiles, whereas the Diffusion Profile list additively accumulates all active volumes in the scene when it combines them.
+
 - If there are more than 15 diffusion profiles,  HDRP only uses profiles with the highest **Priority**. As a result, this change does not break existing projects.
+
 - Removes the Diffusion Profile List from the [Global Settings](Default-Settings-Window.md). Instead, control Diffusion Profiles through the [Diffusion Profile List overrides](Override-Diffusion-Profile.md) in the scene, or in the default volume you define in the Global Settings.
+
 - When you import a Material that has a diffusion profile, HDRP 14 automatically registers the Material's diffusion profile in the Global Settings. To disable this behaviour:
 
 1. Open the Global Settings.
@@ -131,7 +134,7 @@ You can find the new Unity material ball asset in `com.unity.render-pipelines.hi
 
 #### Planar and Triplanar Mapping
 
-From HDRP 14, the [Lit Material](Lit-Shader.md) options include the **Emission UV Mapping** property to perform planar and triplanar mapping in Object space. Use these options to keep the texture mapping consistent when a you change a GameObject's transform.
+From HDRP 14, the [Lit Material](lit-material.md) options include the **Emission UV Mapping** property to perform planar and triplanar mapping in Object space. Use these options to keep the texture mapping consistent when a you change a GameObject's transform.
 
 #### Hair Material Samples
 
@@ -148,19 +151,17 @@ HDRP 14 makes the following changes to settings for Materials that use Path trac
 - Adds the **Use AOVs** setting to Material shaders that use path tracing to support the new path tracing denoisers. When you enable this setting, HDRP puts albedo and normal values into [Arbitrary Output Variables (AOVs)](AOVs.md).
 
 The scene for Hair shading in the Material Samples has been updated and now showcases the newest Physical Hair Shader.
-
 - Increases the max **Maximum Depth** property value to 32. To do this, HDRP spawns continuation (indirect) rays from the ray generation shader instead of shooting rays recursively from the `closesthit()` function.
 
 #### Path Tracer Transparency fallbacks
 
 HDRP 14 improves the fallbacks for refractive transparent Materials. These improvements simplify the setup for transparency and make objects appear similar in the rasterization, recursive rendering and path tracing rendering paths:
-
 - Single-sided objects now automatically use the **Thin** refraction model. This makes sure the ray exits the object. If a ray never exits the object, the glass appears incorrectly dark.
 - For a double-sided object that uses the **Planar** or **Sphere** refractive model, the normal mode is now forced to **None** to match the correct setup for solid objects.
 
 ### Cloud Layer
 
-HDRP 14 makes the following improvements to the [Cloud Layer](Override-Cloud-Layer.md):
+HDRP 14 makes the following improvements to the [Cloud Layer](create-simple-clouds-cloud-layer.md):
 
 - The sun light color correctly takes atmospheric attenuation into account when you use the Cloud Layer in combination with the physically based sky.
 - The sun light color now always impacts the color of the clouds, even if raymarching is disabled.
@@ -196,6 +197,7 @@ For more information, see the new  **Injection Point** parameter in the [HDRP As
 
 HDRP 14 adds a node to Shader Graph that you can use to strip `FragInputs`. This node strips out any unused interpolators that use a lot of memory to improve GPU performance .
 
+
 ### Adaptive Probe Volume
 
 ![Tech behind Enemies](Images/APV-enemies-tech.png)
@@ -212,6 +214,7 @@ HDRP 14 makes the following changes to Adaptive Probe Volume (APV):
 In HDRP 14 adds the following properties to the **Draw Renderers** custom pass:
 
 - An **Override Mode** called **Shader**. Use it to override Shaders instead of Materials in your custom pass. The **Shader** mode acts like the [Camera.RenderWithShader](https://docs.unity3d.com/ScriptReference/Camera.RenderWithShader.html) function and keeps the Material properties of the renderer when it applies the override Shader.
+
 - An option in **Filters** > **Queue**  called **Overlay**. Use this to select GameObjects that HDRP renders in the Overlay render queue.
 
 ### Decal Projectors
@@ -223,7 +226,6 @@ HDRP 14 improves the precision of the Decal Projector's **Angle Fade** property.
 ![](Images/SoftAreaShadowImrpovements.png)
 
 In HDRP 14, soft area shadows are more accurate to the raytraced reference. This version also makes the following changes:
-
 - **Shadow Filtering Quality** only affects the quality of regular lights.
 - Adds the **Area Shadow Filtering Quality** setting to control the quality of area lights. Set this property to **High** to use the improved soft area shadows.
 
@@ -248,7 +250,6 @@ HDRP 14 replaces the cube reflection probe cache array with a 2D texture atlas c
 Planar reflection probes now use the same 2D texture cache. This means you can control the cube probe resolution for each reflection probe to save memory.
 
 ### Water System
-
 ![](Images/WaterSystem2022-2.png)
 
 HDRP 14 introduces the Water System. This feature allows you to render highly realistic water surfaces and interact with them. Among the various features that this version includes:

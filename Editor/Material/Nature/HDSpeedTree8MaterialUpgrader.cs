@@ -109,7 +109,8 @@ namespace UnityEditor.Rendering.HighDefinition
             string guid = "";
             long localID;
             uint diffusionProfileHash = 0;
-            foreach (var diffusionProfileAsset in HDRenderPipelineGlobalSettings.instance.diffusionProfileSettingsList)
+            var diffusionProfiles = VolumeUtils.GetOrCreateDiffusionProfileList(GraphicsSettings.GetRenderPipelineSettings<HDRPDefaultVolumeProfileSettings>().volumeProfile).ToArray();
+            foreach (var diffusionProfileAsset in diffusionProfiles)
             {
                 if (diffusionProfileAsset != null)
                 {

@@ -34,18 +34,15 @@ namespace UnityEditor.VFX.HDRP
 
         bool GeneratesWithShaderGraph()
         {
-            return owner is VFXShaderGraphParticleOutput shaderGraphOutput &&
-                shaderGraphOutput.GetOrRefreshShaderGraphObject() != null &&
-                shaderGraphOutput.GetOrRefreshShaderGraphObject().generatesWithShaderGraph;
+            var sg = VFXShaderGraphHelpers.GetShaderGraph(owner);
+            return sg != null && sg.generatesWithShaderGraph;
         }
 
         public override bool supportsSortingPriority
         {
             get
             {
-                if (owner.isBlendModeOpaque && !(owner is VFXDecalHDRPOutput))
-                    return false;
-                return true;
+                return !owner.isBlendModeOpaque || (owner is VFXDecalHDRPOutput);
             }
         }
 
@@ -58,9 +55,9 @@ namespace UnityEditor.VFX.HDRP
                     yield return "transparentRenderQueue";
                     yield return "opaqueRenderQueue";
                 }
-                else if (owner.isBlendModeOpaque)
+                else if (owner.isBlendModeOpaque || owner is VFXVolumetricFogOutput)
                     yield return "transparentRenderQueue";
-                else
+                else if (owner is VFXVolumetricFogOutput)
                     yield return "opaqueRenderQueue";
             }
         }

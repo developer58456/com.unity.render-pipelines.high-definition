@@ -1,5 +1,5 @@
 using UnityEngine.Experimental.Rendering;
-using UnityEngine.Experimental.Rendering.RenderGraphModule;
+using UnityEngine.Rendering.RenderGraphModule;
 
 
 // Resove the ambiguity in the RendererList name (pick the in-engine version)
@@ -57,10 +57,10 @@ namespace UnityEngine.Rendering.HighDefinition
         class SetGlobalBufferPassData
         {
             public int shaderID;
-            public ComputeBuffer buffer;
+            public GraphicsBuffer buffer;
         }
 
-        internal static void SetGlobalBuffer(RenderGraph renderGraph, int shaderID, ComputeBuffer buffer)
+        internal static void SetGlobalBuffer(RenderGraph renderGraph, int shaderID, GraphicsBuffer buffer)
         {
             using (var builder = renderGraph.AddRenderPass<SetGlobalBufferPassData>("SetGlobalBuffer", out var passData))
             {
@@ -92,13 +92,13 @@ namespace UnityEngine.Rendering.HighDefinition
             switch (samples)
             {
                 case MSAASamples.None:
-                    return 0;
+                    return s_ColorResolve1XPassIndex;
                 case MSAASamples.MSAA2x:
-                    return 1;
+                    return s_ColorResolve2XPassIndex;
                 case MSAASamples.MSAA4x:
-                    return 2;
+                    return s_ColorResolve4XPassIndex;
                 case MSAASamples.MSAA8x:
-                    return 3;
+                    return s_ColorResolve8XPassIndex;
             }
             ;
             return 0;

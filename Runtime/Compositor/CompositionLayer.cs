@@ -191,10 +191,14 @@ namespace UnityEngine.Rendering.HighDefinition.Compositor
             return 1.0f / (int)scale;
         }
 
-        static T AddComponent<T>(GameObject go) where T : Component
+        static T AddComponent<T>(GameObject go, bool allowUndo = false) where T : Component
         {
 #if UNITY_EDITOR
-            return UnityEditor.Undo.AddComponent<T>(go);
+            if (allowUndo)
+                return UnityEditor.Undo.AddComponent<T>(go);
+            else
+                return go.AddComponent<T>();
+
 #else
             return go.AddComponent<T>();
 #endif
@@ -226,9 +230,9 @@ namespace UnityEngine.Rendering.HighDefinition.Compositor
                 return 0;
             }
         }
-        public void Init(string layerID = "")
+        public void Init(string layerID = "", bool allowUndo = false)
         {
-            if (m_LayerName == "")
+            if (m_LayerName?.Length == 0)
             {
                 m_LayerName = layerID;
             }
@@ -263,7 +267,7 @@ namespace UnityEngine.Rendering.HighDefinition.Compositor
 
                     m_LayerCamera.name = "Compositor" + layerID;
                     m_LayerCamera.gameObject.hideFlags = HideFlags.HideInInspector | HideFlags.HideInHierarchy | HideFlags.HideAndDontSave;
-                    if (m_LayerCamera.tag == "MainCamera")
+                    if (m_LayerCamera.CompareTag("MainCamera"))
                     {
                         m_LayerCamera.tag = "Untagged";
                     }
@@ -295,7 +299,7 @@ namespace UnityEngine.Rendering.HighDefinition.Compositor
             // check and fix RT handle
             if (m_OutputTarget != OutputTarget.CameraStack && m_RTHandle == null && m_RenderTarget != null)
             {
-                m_RTHandle = RTHandles.Alloc(m_RenderTarget);
+                m_RTHandle = RTHandles.Alloc(m_RenderTarget, transferOwnership: true);
             }
 
             if (m_OutputTarget != OutputTarget.CameraStack && m_AOVBitmask != MaterialSharedProperty.None)
@@ -316,7 +320,7 @@ namespace UnityEngine.Rendering.HighDefinition.Compositor
                         {
                             m_AOVMap[aovNames[i]] = outputIndex;
                             m_AOVRenderTargets.Add(new RenderTexture(pixelWidth, pixelHeight, 24, (GraphicsFormat)m_ColorBufferFormat));
-                            m_AOVHandles.Add(RTHandles.Alloc(m_AOVRenderTargets[outputIndex]));
+                            m_AOVHandles.Add(RTHandles.Alloc(m_AOVRenderTargets[outputIndex], transferOwnership: true));
                             outputIndex++;
                         }
                     }
@@ -357,7 +361,7 @@ namespace UnityEngine.Rendering.HighDefinition.Compositor
                     // create the component if it is required and does not exist
                     if (layerData == null)
                     {
-                        layerData = AddComponent<AdditionalCompositorData>(m_LayerCamera.gameObject);
+                        layerData = AddComponent<AdditionalCompositorData>(m_LayerCamera.gameObject, allowUndo);
                         layerData.hideFlags = HideFlags.HideAndDontSave | HideFlags.HideInInspector;
                     }
                     // Reset the layer params (in case we cloned a camera which already had AdditionalCompositorData)
@@ -507,8 +511,7 @@ namespace UnityEngine.Rendering.HighDefinition.Compositor
         {
             if (m_LayerCamera)
             {
-                var layerData = m_LayerCamera.GetComponent<AdditionalCompositorData>();
-                if (layerData != null)
+                if (m_LayerCamera.TryGetComponent<AdditionalCompositorData>(out var layerData))
                 {
                     layerData.Init(m_InputFilters, m_ClearAlpha);
 
