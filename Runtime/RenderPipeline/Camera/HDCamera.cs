@@ -703,6 +703,7 @@ namespace UnityEngine.Rendering.HighDefinition
             }
         }
 
+        private float m_ExposureValue = 1.0f; 
         private float m_GpuExposureValue = 1.0f;
         private float m_GpuDeExposureValue = 1.0f;
 
@@ -759,10 +760,19 @@ namespace UnityEngine.Rendering.HighDefinition
                     if (requestState.isDeExposure)
                         m_GpuDeExposureValue = exposureValue[0];
                     else
+                    {
                         m_GpuExposureValue = exposureValue[0];
+                        m_ExposureValue = exposureValue[1];
+                    }
                 }
                 m_ExposureAsyncRequest.Dequeue();
             }
+        }
+
+        // This function processes the asynchronous read-back requests for the exposure and updates the last known exposure value.
+        internal float ExposureValue()
+        {
+            return m_ExposureValue;
         }
 
         // This function processes the asynchronous read-back requests for the exposure and updates the last known exposure value.
