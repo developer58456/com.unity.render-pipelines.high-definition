@@ -162,7 +162,7 @@ namespace UnityEngine.Rendering.HighDefinition
             }
         }
 
-        internal int numActiveBands => HDRenderPipeline.EvaluateBandCount(surfaceType, ripples);
+        internal int numActiveBands => WaterSystem.EvaluateBandCount(surfaceType, ripples);
 
         // Optional CPU simulation data
         internal AsyncTextureSynchronizer<half4> displacementBufferSynchronizer = new AsyncTextureSynchronizer<half4>(GraphicsFormat.R16G16B16A16_SFloat);
@@ -170,12 +170,13 @@ namespace UnityEngine.Rendering.HighDefinition
         // Internal simulation data
         internal WaterSimulationResources simulation = null;
 
-        internal void CheckResources(int bandResolution, bool activeFoam, bool gpuReadback)
+        internal void CheckResources(int bandResolution, bool gpuReadback)
         {
             int bandCount = numActiveBands;
+            bool foam = HasSimulationFoam();
 
             // If the previously existing resources are not valid, just release them
-            if (simulation != null && !simulation.ValidResources(bandResolution, bandCount))
+            if (simulation != null && !simulation.ValidResources(bandResolution, bandCount, foam))
             {
                 simulation.ReleaseSimulationResources();
                 simulation = null;
@@ -191,10 +192,10 @@ namespace UnityEngine.Rendering.HighDefinition
                 simulation = new WaterSimulationResources();
 
                 // Initialize for the allocation
-                simulation.InitializeSimulationResources(bandResolution, bandCount);
+                simulation.InitializeSimulationResources(bandResolution, bandCount, foam);
 
                 // GPU buffers should always be allocated
-                simulation.AllocateSimulationBuffersGPU(activeFoam);
+                simulation.AllocateSimulationBuffersGPU();
 
                 // CPU buffers should be allocated only if required
                 if (cpuSimulationActive)
@@ -263,7 +264,7 @@ namespace UnityEngine.Rendering.HighDefinition
                     float swellPatchSize = repetitionSize;
 
                     // We need to evaluate the radio between the first and second band
-                    float swellSecondBandRatio = HDRenderPipeline.EvaluateSwellSecondPatchSize(swellPatchSize);
+                    float swellSecondBandRatio = WaterSystem.EvaluateSwellSecondPatchSize(swellPatchSize);
 
                     // Set the patch groups
                     spectrum.patchGroup.x = 0;
@@ -276,8 +277,8 @@ namespace UnityEngine.Rendering.HighDefinition
                     spectrum.patchSizes.z = WaterConsts.k_RipplesBandSize;
 
                     // Keep track of the directionality is used
-                    float largeAngle = HDRenderPipeline.NormalizeAngle(largeOrientationValue);
-                    float ripplesAngle = HDRenderPipeline.NormalizeAngle(ripplesOrientationValue);
+                    float largeAngle = WaterSystem.NormalizeAngle(largeOrientationValue);
+                    float ripplesAngle = WaterSystem.NormalizeAngle(ripplesOrientationValue);
                     spectrum.patchOrientation.x = largeAngle;
                     spectrum.patchOrientation.y = largeAngle;
                     spectrum.patchOrientation.z = ripplesMotionMode == WaterPropertyOverrideMode.Inherit ? largeAngle : ripplesAngle;
@@ -312,8 +313,8 @@ namespace UnityEngine.Rendering.HighDefinition
                     spectrum.patchWindSpeed.y = ripplesWindSpeed * WaterConsts.k_KilometerPerHourToMeterPerSecond;
 
                     // Keep track of the directionality is used
-                    float largeAngle = HDRenderPipeline.NormalizeAngle(largeOrientationValue);
-                    float ripplesAngle = HDRenderPipeline.NormalizeAngle(ripplesOrientationValue);
+                    float largeAngle = WaterSystem.NormalizeAngle(largeOrientationValue);
+                    float ripplesAngle = WaterSystem.NormalizeAngle(ripplesOrientationValue);
                     spectrum.patchOrientation.x = largeAngle;
                     spectrum.patchOrientation.y = ripplesMotionMode == WaterPropertyOverrideMode.Inherit ? largeAngle : ripplesAngle;
 
@@ -338,7 +339,7 @@ namespace UnityEngine.Rendering.HighDefinition
                     spectrum.patchWindSpeed.x = ripplesWindSpeed * WaterConsts.k_KilometerPerHourToMeterPerSecond;
 
                     // Keep track of the directionality is used
-                    spectrum.patchOrientation.x = HDRenderPipeline.NormalizeAngle(ripplesOrientationValue);
+                    spectrum.patchOrientation.x = WaterSystem.NormalizeAngle(ripplesOrientationValue);
 
                     // Set the patch groups
                     spectrum.groupOrientation.x = spectrum.patchOrientation.x;

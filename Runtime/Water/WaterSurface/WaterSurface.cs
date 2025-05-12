@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using UnityEditor;
 using Unity.Mathematics;
-using Unity.Collections.LowLevel.Unsafe;
-using UnityEngine.VFX;
 using UnityEngine.Serialization;
 
 #if UNITY_EDITOR
@@ -81,13 +79,14 @@ namespace UnityEngine.Rendering.HighDefinition
     /// <summary>
     /// Water surface component.
     /// </summary>
-    [HDRPHelpURL("WaterSystem")]
+    [HDRPHelpURL("water")]
     [DisallowMultipleComponent]
     [ExecuteInEditMode]
     public partial class WaterSurface : MonoBehaviour
     {
         #region Instance Management
         // Management to avoid memory allocations at fetch time
+        // NOTE: instances tracks active instances, disabled instances can exist and are not included.
         internal static HashSet<WaterSurface> instances = new HashSet<WaterSurface>();
         internal static WaterSurface[] instancesAsArray = null;
         internal static int instanceCount = 0;
@@ -433,7 +432,7 @@ namespace UnityEngine.Rendering.HighDefinition
         /// </summary>
         [Min(0.001f), Tooltip("Sets the multiplier for the  Absorption Distance when the camera is underwater. A value of 2.0 means you will see twice as far underwater.")]
         public float absorptionDistanceMultiplier = 1.0f;
-        
+
         /// <summary>
         /// Sets the contribution of the ambient probe luminance when multiplied by the underwater scattering color.
         /// </summary>
@@ -489,59 +488,140 @@ namespace UnityEngine.Rendering.HighDefinition
             mpb.SetTexture(HDShaderIDs._WaterAdditionalDataBuffer, simulation.gpuBuffers.additionalDataBuffer);
         }
 
-        internal void FillMaterialPropertyBlock(bool supportFoam, bool supportDeformation)
+        internal void FillMaterialPropertyBlock(WaterSystem system, bool supportDecals)
         {
-            var constantBuffer = HDRenderPipeline.currentPipeline.m_ShaderVariablesWaterPerSurface[surfaceIndex];
+            var constantBuffer = HDRenderPipeline.currentPipeline.waterSystem.m_ShaderVariablesWaterPerSurface[surfaceIndex];
             mpb.SetConstantBuffer(HDShaderIDs._ShaderVariablesWaterPerSurface, constantBuffer, 0, constantBuffer.stride);
 
             // Textures
-            mpb.SetTexture(HDShaderIDs._SimulationFoamMask, simulationFoamMask != null ? simulationFoamMask : Texture2D.whiteTexture);
-            mpb.SetTexture(HDShaderIDs._WaterMask, waterMask != null ? waterMask : Texture2D.whiteTexture);
-            mpb.SetTexture(HDShaderIDs._Group0CurrentMap, largeCurrentMap != null ? largeCurrentMap : Texture2D.blackTexture);
-            mpb.SetTexture(HDShaderIDs._Group1CurrentMap, ripplesCurrentMap != null ? ripplesCurrentMap : Texture2D.blackTexture);
-
-            Texture deformationData = supportDeformation && deformation ? deformationBuffer : Texture2D.blackTexture;
-            mpb.SetTexture(HDShaderIDs._WaterDeformationBuffer, deformationData);
-
-            Texture deformationSGData = supportDeformation && deformation ? deformationSGBuffer : Texture2D.blackTexture;
-            mpb.SetTexture(HDShaderIDs._WaterDeformationSGBuffer, deformationSGData);
+            mpb.SetTexture(HDShaderIDs._SimulationFoamMask, GetSimulationFoamMaskBuffer(system, supportDecals, Texture2D.whiteTexture));
+            mpb.SetTexture(HDShaderIDs._WaterMask, GetSimulationMaskBuffer(system, supportDecals, Texture2D.whiteTexture));
+            mpb.SetTexture(HDShaderIDs._Group0CurrentMap, GetLargeCurrentBuffer(system, supportDecals, Texture2D.blackTexture));
+            mpb.SetTexture(HDShaderIDs._Group1CurrentMap, GetRipplesCurrentBuffer(system, supportDecals, Texture2D.blackTexture));
+            mpb.SetTexture(HDShaderIDs._WaterDeformationBuffer, GetDeformationBuffer(system, supportDecals, Texture2D.blackTexture));
+            mpb.SetTexture(HDShaderIDs._WaterDeformationSGBuffer, GetDeformationNormalBuffer(system, supportDecals, Texture2D.blackTexture));
+            mpb.SetTexture(HDShaderIDs._WaterFoamBuffer, GetFoamBuffer(system, supportDecals,Texture2D.blackTexture));
 
             Texture causticsData = caustics ? simulation.gpuBuffers.causticsBuffer : Texture2D.blackTexture;
             mpb.SetTexture(HDShaderIDs._WaterCausticsDataBuffer, causticsData);
 
-            Texture foamData = supportFoam && foam ? FoamBuffer() : Texture2D.blackTexture;
-            mpb.SetTexture(HDShaderIDs._WaterFoamBuffer, foamData);
         }
 
         /// <summary>
         ///  Function that globally binds the textures and constant buffer for use by external systems such as VFX Graph
         ///  As the binding is done globally, only one surface can be bound during a frame
         /// </summary>
-        public void SetGlobalTextures()
+        /// <returns>A boolean that indicates if the function was able to bind GlobalTextures.</returns>
+        public bool SetGlobalTextures()
         {
-            bool supportFoam = true;
-            bool supportDeformation = true;
-
             if (simulation == null)
-                return;
+                return false;
 
-            var constantBuffer = HDRenderPipeline.currentPipeline.m_ShaderVariablesWaterPerSurface[surfaceIndex];
+            var constantBuffer = HDRenderPipeline.currentPipeline.waterSystem.m_ShaderVariablesWaterPerSurface[surfaceIndex];
             Shader.SetGlobalTexture(HDShaderIDs._WaterDisplacementBuffer, simulation.gpuBuffers.displacementBuffer);
             Shader.SetGlobalTexture(HDShaderIDs._WaterAdditionalDataBuffer, simulation.gpuBuffers.additionalDataBuffer);
             Shader.SetGlobalConstantBuffer(HDShaderIDs._ShaderVariablesWaterPerSurface, constantBuffer, 0, constantBuffer.stride);
 
-            Shader.SetGlobalTexture(HDShaderIDs._SimulationFoamMask, simulationFoamMask != null ? simulationFoamMask : Texture2D.whiteTexture);
-            Shader.SetGlobalTexture(HDShaderIDs._WaterMask, waterMask != null ? waterMask : Texture2D.whiteTexture);
-            Shader.SetGlobalTexture(HDShaderIDs._Group0CurrentMap, largeCurrentMap != null ? largeCurrentMap : Texture2D.blackTexture);
-            Shader.SetGlobalTexture(HDShaderIDs._Group1CurrentMap, ripplesCurrentMap != null ? ripplesCurrentMap : Texture2D.blackTexture);
+            var system = HDRenderPipeline.currentPipeline.waterSystem;
+            Shader.SetGlobalTexture(HDShaderIDs._SimulationFoamMask, GetSimulationFoamMaskBuffer(system, true, Texture2D.whiteTexture));
+            Shader.SetGlobalTexture(HDShaderIDs._WaterMask, GetSimulationMaskBuffer(system, true, Texture2D.whiteTexture));
+            Shader.SetGlobalTexture(HDShaderIDs._Group0CurrentMap, GetLargeCurrentBuffer(system, true, Texture2D.blackTexture));
+            Shader.SetGlobalTexture(HDShaderIDs._Group1CurrentMap, GetRipplesCurrentBuffer(system, true, Texture2D.blackTexture));
+            Shader.SetGlobalTexture(HDShaderIDs._WaterDeformationBuffer, GetDeformationBuffer(system, true, Texture2D.blackTexture));
+            Shader.SetGlobalTexture(HDShaderIDs._WaterDeformationSGBuffer, GetDeformationNormalBuffer(system, true, Texture2D.blackTexture));
+            Shader.SetGlobalTexture(HDShaderIDs._WaterFoamBuffer, GetFoamBuffer(system, true, Texture2D.blackTexture));
+            return true;
+        }
+        #endregion
 
-            Texture deformationData = supportDeformation && deformation ? deformationBuffer : Texture2D.blackTexture;
-            Shader.SetGlobalTexture(HDShaderIDs._WaterDeformationBuffer, deformationData);
-            Texture deformationSGData = supportDeformation && deformation ? deformationSGBuffer : Texture2D.blackTexture;
-            Shader.SetGlobalTexture(HDShaderIDs._WaterDeformationSGBuffer, deformationSGData);
+        #region Water Decals
+        /// <summary>
+        /// Defines the resolution of the internal decal region textures.
+        /// </summary>
+        public enum WaterDecalRegionResolution
+        {
+            /// <summary>
+            /// The water decals are rendered in a 256x256 texture.
+            /// </summary>
+            [InspectorName("Low 256")]
+            Resolution256 = 256,
+            /// <summary>
+            /// The water decals are rendered in a 512x512 texture.
+            /// </summary>
+            [InspectorName("Medium 512")]
+            Resolution512 = 512,
+            /// <summary>
+            /// The water decals are rendered in a 1024x1024 texture.
+            /// </summary>
+            [InspectorName("High 1024")]
+            Resolution1024 = 1024,
+            /// <summary>
+            /// The water decals are rendered in a 2048x2048 texture.
+            /// </summary>
+            [InspectorName("Very High 2048")]
+            Resolution2048 = 2048,
+        }
 
-            Texture foamData = supportFoam && foam ? FoamBuffer() : Texture2D.blackTexture;
-            Shader.SetGlobalTexture(HDShaderIDs._WaterFoamBuffer, foamData);
+        /// <summary>
+        /// Specifies the size of the decal region in meters.
+        /// </summary>
+        public Vector2 decalRegionSize = new Vector2(200.0f, 200.0f);
+
+        /// <summary>
+        /// Specifies the center of the decal region. When null, the region will follow the main camera.
+        /// </summary>
+        public Transform decalRegionAnchor = null;
+
+        // Compute the decal region bounds for this frame
+        internal float2 frameRegionCenter, frameRegionSize;
+        internal void UpdateDecalRegion(Transform anchor)
+        {
+            if (decalRegionAnchor != null)
+                anchor = decalRegionAnchor;
+
+            frameRegionSize = decalRegionSize;
+            frameRegionCenter = anchor != null ? new float2(anchor.position.x, anchor.position.z) : 0.0f;
+            if (anchor == null)
+                return;
+
+
+            if (IsProceduralGeometry() && !IsInfinite())
+            {
+                float3 position = transform.position;
+                float size = length(new float2(abs(transform.lossyScale.x), abs(transform.lossyScale.z))) * 0.5f;
+
+                float2 waterMin = position.xz - size, waterMax = position.xz + size;
+                float2 regionMin = max(waterMin, frameRegionCenter - frameRegionSize * 0.5f);
+                float2 regionMax = min(waterMax, frameRegionCenter + frameRegionSize * 0.5f);
+
+                frameRegionCenter = (regionMin + regionMax) * 0.5f;
+                frameRegionSize = regionMax - regionMin;
+                //frameRegionSize = max(regionMax-frameRegionCenter, frameRegionCenter-regionMin) * 2.0f;
+            }
+            /*
+            else if (IsCustomMesh())
+            {
+                Vector3 decalRegionCenter = new Vector3(anchor.position.x, 0.0f, anchor.position.z);
+                if (!IsCustomMesh())
+                    decalRegionCenter = transform.rotation * decalRegionCenter;
+            }
+            */
+
+            // Move region in steps to avoid flickering under camera movement
+            // We only use the foam resolution as it's the one that gets reprojected
+            float step = max(frameRegionSize.x, frameRegionSize.y) / (float)foamResolution;
+            frameRegionCenter = round(frameRegionCenter / step) * step;
+        }
+
+        /// <summary>
+        /// Function that returns the decal region center and size.
+        /// </summary>
+        /// <param name="center">Region center, based on the anchor gameObject.</param>
+        /// <param name="size">Region size.</param>
+        public void GetDecalRegion(out float2 center, out float2 size)
+        {
+            center = frameRegionCenter;
+            size = frameRegionSize;
         }
         #endregion
 
@@ -556,23 +636,29 @@ namespace UnityEngine.Rendering.HighDefinition
             if (hdrp == null || !scriptInteractions)
                 return false;
 
-            if (simulation != null && simulation.ValidResources((int)hdrp.m_WaterBandResolution, numActiveBands))
+            if (simulation != null && simulation.ValidResources((int)hdrp.waterSystem.simationRes, numActiveBands, HasSimulationFoam()))
             {
                 // General
                 wsd.simulationTime = simulation.simulationTime;
 
                 // Simulation
-                wsd.activeBandCount = HDRenderPipeline.EvaluateCPUBandCount(surfaceType, ripples, cpuEvaluateRipples);
-                wsd.cpuSimulation = !hdrp.m_GPUReadbackMode;
+                wsd.activeBandCount = WaterSystem.EvaluateCPUBandCount(surfaceType, ripples, cpuEvaluateRipples);
+                wsd.cpuSimulation = hdrp.waterSystem.replicateSimulationOnCPU;
                 wsd.spectrum = simulation.spectrum;
                 wsd.rendering = simulation.rendering;
+
+                wsd.decalWorkflow = HDRenderPipeline.currentPipeline.waterSystem.m_EnableDecalWorkflow;
+
+                GetDecalRegion(out var center, out var size);
+                wsd.decalRegionCenter = center;
+                wsd.decalRegionScale = 1.0f / size;
 
                 if (wsd.cpuSimulation)
                 {
                     if (simulation.cpuBuffers == null)
                         return false;
 
-                    wsd.simulationRes = (int)hdrp.m_WaterCPUSimulationResolution;
+                    wsd.simulationRes = (int)hdrp.waterSystem.cpuSimationRes;
                     wsd.displacementDataCPU = simulation.cpuBuffers.displacementBufferCPU;
                     wsd.displacementDataGPU = wsd.displacementDataCPU.Reinterpret<half4>(4 * sizeof(float));
                 }
@@ -620,7 +706,7 @@ namespace UnityEngine.Rendering.HighDefinition
             // Try to to fill the search data and run the evaluation.
             WaterSimSearchData wsd = new WaterSimSearchData();
             if (FillWaterSearchData(ref wsd))
-                return HDRenderPipeline.ProjectPointOnWaterSurface(wsd, wsp, ref wsr);
+                return WaterSystem.ProjectPointOnWaterSurface(wsd, wsp, ref wsr);
             return false;
         }
 
@@ -717,7 +803,7 @@ namespace UnityEngine.Rendering.HighDefinition
 
         internal bool IsProceduralGeometry()
         {
-            return IsInstancedQuads() || IsQuad();
+            return !IsCustomMesh();
         }
 
         internal bool IsCustomMesh()
@@ -763,34 +849,12 @@ namespace UnityEngine.Rendering.HighDefinition
         {
             if (caustics && simulation?.gpuBuffers?.causticsBuffer != null)
             {
-                int causticsBandIndex = HDRenderPipeline.SanitizeCausticsBand(causticsBand, simulation.numActiveBands);
+                int causticsBandIndex = WaterSystem.SanitizeCausticsBand(causticsBand, simulation.numActiveBands);
                 regionSize = simulation.spectrum.patchSizes[causticsBandIndex];
                 return simulation.gpuBuffers.causticsBuffer;
             }
             regionSize = 0.0f;
             return null;
-        }
-
-        /// <summary>
-        /// Function that returns the foam buffer for the water surface. If the feature is disabled or the resource is not available the function returns null.
-        /// </summary>
-        /// <param name="foamArea">Output parameter that returns the size of the foam region.</param>
-        /// <returns>An RG texture that holds the surface foam (red channel) and deep foam (green channel) of the water surface.</returns>
-        public Texture GetFoamBuffer(out Vector2 foamArea)
-        {
-            foamArea = foamAreaSize;
-            return FoamBuffer();
-        }
-
-        /// <summary>
-        /// Function that returns the deformation buffer for the water surface. If the feature is disabled or the resource is not available the function returns null.
-        /// </summary>
-        /// <seealso cref="WaterSurface.deformationAreaSize"/>
-        /// <seealso cref="WaterSurface.deformationAreaOffset"/>
-        /// <returns>A single channgel texture that holds the surface deformation of the water surface.</returns>
-        public Texture GetDeformationBuffer()
-        {
-            return deformation ? deformationBuffer : null;
         }
     }
 }

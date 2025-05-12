@@ -22,6 +22,10 @@ With the introduction of the sky occlusion feature some asset data layout has ch
 
 Path tracing now has a *Seed Mode* parameter. The default is the **non repeating** noise pattern, which is different from the previous behavior. To match behavior in the last version, select the **repeating** pattern.
 
+The [Raytracing Quality Keyword](SGNode-Raytracing-Quality.md) has been updated to include a Pathtraced input. 
+In previous versions, when Path tracing is enabled, the default input was used. Now, it uses the Pathtraced input. This is to prevent compilation error in graphs using unsupported nodes. 
+If you had Shader Graph materials using the Raytracing Quality Keyword, the result will stay unchanged until you re-save them. To upgrade the behavior, you need to delete the keyword in the blackboard and re-add it manually. 
+
 ## Enabling light sources in Path Tracing
 
 In this version, the setting to include light sources in ray traced effects has been split in one checkbox for hybrid ray tracing effects (`include for Ray Tracing`) and one checkbox for inclusion in Path Tracing (`include for Path Tracing`). When upgrading, this last checkbox might need to be updated.
@@ -39,3 +43,8 @@ Note that this change will result in a loss of precision for the attenuation val
 
 To disable `PrecomputedAtmosphericAttenuation`, first you need to install the HDRP config package which can be done using the [Render Pipeline Wizard](Render-Pipeline-Wizard.md). For more info, see [HDRP Config](configure-a-project-using-the-hdrp-config-package.md).
 Once installed, go in ShaderConfig.cs and set `PrecomputedAtmosphericAttenuation` to 0.
+
+## Physically Based Depth Of Field
+
+We improved the performances of the PBR DoF and removed the parameter "High Quality Filtering" as it was too costly to be used in a reasonable scenario. The replacement of this option is the resolution dropdown which allows to use full resolution physically based depth of field whereas before it was maxed at half resolution. This allows for more precise depth of field and less artifacts but it's still very costly.
+The PBR DoF now also take in account the aperture shape defined in the physical camera settings (blade count, etc.)

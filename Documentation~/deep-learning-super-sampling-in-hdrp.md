@@ -33,7 +33,7 @@ To use DLSS in your scene:
 
     * To install the NVIDIA package manually:
 
-        1. Open the [Package Manager window](https://docs.unity3d.com/Manual/upm-ui.html) (menu: **Window** > **Package Manager**).
+        1. Open the [Package Manager window](https://docs.unity3d.com/Manual/upm-ui.html) (menu: **Window** > **Package Management** > **Package Manager**).
         2. Select **Packages**, then select **Built-in**.
         3. In the packages list view, find and select the NVIDIA package.
         4. In the bottom right of the package-specific detail view, select **Enable**.
@@ -78,7 +78,11 @@ If you need a specific custom mip bias for a Texture, create a custom sampler th
 Out = SAMPLE_TEXTURE2D_BIAS(TextureInput, SamplerInput, UV, MipBias);
 ```
 
-![](Images/CustomMipSupportNode.png)
+![Example: The above script in the Node Settings Body field.](Images/CustomMipSupportNode.png)
 
+![Example: Custom Mip support node in a shader graph.](Images/CustomMipSupportNodeExample.png)
 
-![](Images/CustomMipSupportNodeExample.png)
+## Additional resources
+
+- [Introduction to changing resolution scale](https://docs.unity3d.com/6000.0/Documentation/Manual/resolution-scale-introduction.html)
+

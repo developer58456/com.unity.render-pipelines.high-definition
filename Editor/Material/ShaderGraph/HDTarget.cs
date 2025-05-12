@@ -243,6 +243,7 @@ namespace UnityEditor.Rendering.HighDefinition.ShaderGraph
                 const string k_VFXToggleTooltip = "When enabled, this shader can be assigned to a compatible Visual Effect Graph output.";
                 context.AddProperty("Support VFX Graph", k_VFXToggleTooltip, 0, m_SupportVFXToggle, (evt) =>
                 {
+					registerUndo("Change Support VFX Graph");
                     m_SupportVFX = m_SupportVFXToggle.value;
                     onChange();
                 });
@@ -253,6 +254,7 @@ namespace UnityEditor.Rendering.HighDefinition.ShaderGraph
                 m_SupportLineRenderingToggle = new Toggle("") { value = m_SupportLineRendering };
                 context.AddProperty("Support High Quality Line Rendering", "", 0, m_SupportLineRenderingToggle, (evt) =>
                 {
+					registerUndo("Change Support High Quality Line Rendering");
                     m_SupportLineRendering = m_SupportLineRenderingToggle.value;
                     onChange();
                 });
@@ -1875,6 +1877,15 @@ namespace UnityEditor.Rendering.HighDefinition.ShaderGraph
         {
             displayName = "Use Legacy Lightmaps",
             referenceName = "USE_LEGACY_LIGHTMAPS",
+            type = KeywordType.Boolean,
+            definition = KeywordDefinition.MultiCompile,
+            scope = KeywordScope.Global
+        };
+
+        public static KeywordDescriptor LightmapBicubicSampling = new KeywordDescriptor()
+        {
+            displayName = "Lightmap Bicubic Sampling",
+            referenceName = "LIGHTMAP_BICUBIC_SAMPLING",
             type = KeywordType.Boolean,
             definition = KeywordDefinition.MultiCompile,
             scope = KeywordScope.Global

@@ -24,6 +24,7 @@ namespace UnityEditor.Rendering.HighDefinition
         public SerializedProperty supportSSAO;
         public SerializedProperty supportSSGI;
         public SerializedProperty supportSubsurfaceScattering;
+        public SerializedProperty subsurfaceScatteringBorderAttenuation;
         public SerializedScalableSetting sssSampleBudget;
         public SerializedScalableSetting sssDownsampleSteps;
         [FormerlySerializedAs("supportVolumetric")]
@@ -33,12 +34,11 @@ namespace UnityEditor.Rendering.HighDefinition
         // Water
         public SerializedProperty supportWater;
         public SerializedProperty waterSimulationResolution;
-        public SerializedProperty supportWaterDeformation;
-        public SerializedProperty deformationAtlasSize;
-        public SerializedProperty maximumDeformerCount;
-        public SerializedProperty supportWaterFoam;
-        public SerializedProperty foamAtlasSize;
         public SerializedProperty supportWaterExclusion;
+        public SerializedProperty supportWaterDecals;
+        public SerializedProperty supportWaterHorizontalDeformation;
+        public SerializedProperty waterDecalAtlasSize;
+        public SerializedProperty maximumWaterDecalCount;
         public SerializedProperty waterScriptInteractionsMode;
         public SerializedProperty waterFullCPUSimulation;
 
@@ -50,6 +50,7 @@ namespace UnityEditor.Rendering.HighDefinition
         public SerializedProperty supportedLitShaderMode;
         public SerializedProperty colorBufferFormat;
         public SerializedProperty supportCustomPass;
+        public SerializedProperty supportVariableRateShading;
         public SerializedProperty customBufferFormat;
         public SerializedProperty renderingLayerMaskBuffer;
         public SerializedScalableSetting planarReflectionResolution;
@@ -83,7 +84,7 @@ namespace UnityEditor.Rendering.HighDefinition
 
         public SerializedProperty supportScreenSpaceLensFlare;
         public SerializedProperty supportDataDrivenLensFlare;
-        
+
         public SerializedGlobalLightLoopSettings lightLoopSettings;
         public SerializedHDShadowInitParameters hdShadowInitParams;
         public SerializedGlobalDecalSettings decalSettings;
@@ -117,6 +118,7 @@ namespace UnityEditor.Rendering.HighDefinition
             supportSSAO = root.Find((RenderPipelineSettings s) => s.supportSSAO);
             supportSSGI = root.Find((RenderPipelineSettings s) => s.supportSSGI);
             supportSubsurfaceScattering = root.Find((RenderPipelineSettings s) => s.supportSubsurfaceScattering);
+            subsurfaceScatteringBorderAttenuation = root.Find((RenderPipelineSettings s) => s.subsurfaceScatteringAttenuation);
             sssSampleBudget = new SerializedScalableSetting(root.Find((RenderPipelineSettings s) => s.sssSampleBudget));
             sssDownsampleSteps = new SerializedScalableSetting(root.Find((RenderPipelineSettings s) => s.sssDownsampleSteps));
             supportVolumetrics = root.Find((RenderPipelineSettings s) => s.supportVolumetrics);
@@ -125,12 +127,11 @@ namespace UnityEditor.Rendering.HighDefinition
             // Water data
             supportWater = root.Find((RenderPipelineSettings s) => s.supportWater);
             waterSimulationResolution = root.Find((RenderPipelineSettings s) => s.waterSimulationResolution);
-            supportWaterDeformation = root.Find((RenderPipelineSettings s) => s.supportWaterDeformation);
-            deformationAtlasSize = root.Find((RenderPipelineSettings s) => s.deformationAtlasSize);
-            maximumDeformerCount = root.Find((RenderPipelineSettings s) => s.maximumDeformerCount);
-            supportWaterFoam = root.Find((RenderPipelineSettings s) => s.supportWaterFoam);
-            foamAtlasSize = root.Find((RenderPipelineSettings s) => s.foamAtlasSize);
             supportWaterExclusion = root.Find((RenderPipelineSettings s) => s.supportWaterExclusion);
+            supportWaterDecals = root.Find((RenderPipelineSettings s) => s.supportWaterDecals);
+            supportWaterHorizontalDeformation = root.Find((RenderPipelineSettings s) => s.supportWaterHorizontalDeformation);
+            waterDecalAtlasSize = root.Find((RenderPipelineSettings s) => s.waterDecalAtlasSize);
+            maximumWaterDecalCount = root.Find((RenderPipelineSettings s) => s.maximumWaterDecalCount);
             waterScriptInteractionsMode = root.Find((RenderPipelineSettings s) => s.waterScriptInteractionsMode);
             waterFullCPUSimulation = root.Find((RenderPipelineSettings s) => s.waterFullCPUSimulation);
 
@@ -143,6 +144,7 @@ namespace UnityEditor.Rendering.HighDefinition
             customBufferFormat = root.Find((RenderPipelineSettings s) => s.customBufferFormat);
             renderingLayerMaskBuffer = root.Find((RenderPipelineSettings s) => s.renderingLayerMaskBuffer);
             supportCustomPass = root.Find((RenderPipelineSettings s) => s.supportCustomPass);
+            supportVariableRateShading = root.Find((RenderPipelineSettings s) => s.supportVariableRateShading);
             supportedLitShaderMode = root.Find((RenderPipelineSettings s) => s.supportedLitShaderMode);
             planarReflectionResolution = new SerializedScalableSetting(root.Find((RenderPipelineSettings s) => s.planarReflectionResolution));
             cubeReflectionResolution = new SerializedScalableSetting(root.Find((RenderPipelineSettings s) => s.cubeReflectionResolution));
@@ -181,7 +183,7 @@ namespace UnityEditor.Rendering.HighDefinition
             lowresTransparentSettings = new SerializedLowResTransparencySettings(root.Find((RenderPipelineSettings s) => s.lowresTransparentSettings));
             xrSettings = new SerializedXRSettings(root.Find((RenderPipelineSettings s) => s.xrSettings));
             postProcessQualitySettings = new SerializedPostProcessingQualitySettings(root.Find((RenderPipelineSettings s) => s.postProcessQualitySettings));
-            
+
             supportScreenSpaceLensFlare = root.Find((RenderPipelineSettings s) => s.supportScreenSpaceLensFlare);
             supportDataDrivenLensFlare = root.Find((RenderPipelineSettings s) => s.supportDataDrivenLensFlare);
 

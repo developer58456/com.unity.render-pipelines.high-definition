@@ -68,6 +68,9 @@ namespace UnityEngine.Rendering.HighDefinition
 
             RTHandle m_AtmosphericScatteringLut;
 
+            // BUG: https://jira.unity3d.com/browse/UUM-86915 RwTex3D outputs red. Disable on some devices as a workaround.
+            bool m_EnableAtmosphericScatteringBlur;
+
             bool IsWorldSpace() => m_InScatteredRadianceTables != null;
 
             RTHandle AllocateGroundIrradianceTable()
@@ -150,6 +153,13 @@ namespace UnityEngine.Rendering.HighDefinition
                         colorFormat: s_ColorFormat,
                         enableRandomWrite: true,
                         name: "AtmosphericScatteringLUT");
+
+                    // BUG: https://jira.unity3d.com/browse/UUM-86915
+                    m_EnableAtmosphericScatteringBlur = !(s_ColorFormat == GraphicsFormat.B10G11R11_UFloatPack32 &&
+                        SystemInfo.graphicsDeviceName.Contains("Graphics") &&
+                        (SystemInfo.graphicsDeviceName.Contains("HD")      ||    // and UHD
+                         SystemInfo.graphicsDeviceName.Contains("Iris")    ||
+                         SystemInfo.graphicsDeviceName.Contains("Xe")));
                 }
             }
 
@@ -265,6 +275,18 @@ namespace UnityEngine.Rendering.HighDefinition
                     (int)PbrSkyConfig.AtmosphericScatteringLutWidth,
                     (int)PbrSkyConfig.AtmosphericScatteringLutHeight,
                     1);
+
+                // Perform a blur pass on the buffer to reduce resolution artefacts
+                cmd.SetComputeTextureParam(s_SkyLUTGenerator, s_AtmosphericScatteringBlurKernel, HDShaderIDs._AtmosphericScatteringLUT_RW, m_AtmosphericScatteringLut);
+
+                if(m_EnableAtmosphericScatteringBlur)
+                {
+                    cmd.DispatchCompute(s_SkyLUTGenerator, s_AtmosphericScatteringBlurKernel,
+                        1,
+                        1,
+                        (int)PbrSkyConfig.AtmosphericScatteringLutDepth);
+                }
+                
             }
 
             public void BindGlobalBuffers(CommandBuffer cmd)
@@ -323,14 +345,17 @@ namespace UnityEngine.Rendering.HighDefinition
         int m_ShaderVariablesPhysicallyBasedSkyID = Shader.PropertyToID("ShaderVariablesPhysicallyBasedSky");
         static GraphicsFormat s_ColorFormat = GraphicsFormat.B10G11R11_UFloatPack32;
 
+        // Common resourcse
+        static ComputeShader s_SkyLUTGenerator;
+        static int s_MultiScatteringKernel, s_AtmosphericScatteringBlurKernel;
+
         // Resources for world space sky
         static ComputeShader s_GroundIrradiancePrecomputationCS;
         static ComputeShader s_InScatteredRadiancePrecomputationCS;
         static int s_AtmosphericScatteringKernelWorld;
 
         // Resources for camera space sky
-        static ComputeShader s_SkyLUTGenerator;
-        static int s_MultiScatteringKernel, s_SkyViewKernel, s_AtmosphericScatteringKernelCamera;
+        static int s_SkyViewKernel, s_AtmosphericScatteringKernelCamera;
 
         public override void Build()
         {
@@ -343,6 +368,7 @@ namespace UnityEngine.Rendering.HighDefinition
             // Common
             s_SkyLUTGenerator = shaders.skyLUTGenerator;
             s_MultiScatteringKernel = s_SkyLUTGenerator.FindKernel("MultiScatteringLUT");
+            s_AtmosphericScatteringBlurKernel = s_SkyLUTGenerator.FindKernel("AtmosphericScatteringBlur");
 
             // Camera space sky
             s_SkyViewKernel = s_SkyLUTGenerator.FindKernel("SkyViewLUT");
@@ -372,6 +398,8 @@ namespace UnityEngine.Rendering.HighDefinition
 
         public override void Cleanup()
         {
+            s_DataFrameUpdate = -1;
+            
             if (m_PrecomputedData != null)
             {
                 s_PrecomputationCache.Release(m_LastPrecomputationParamHash);
@@ -508,6 +536,8 @@ namespace UnityEngine.Rendering.HighDefinition
             m_ConstantBuffer._CelestialLightCount = s_CelestialLightCount;
             m_ConstantBuffer._CelestialBodyCount = s_CelestialBodyCount;
             m_ConstantBuffer._CelestialLightExposure = s_CelestialLightExposure;
+            if (builtinParams.volumetricClouds != null)
+                m_ConstantBuffer._VolumetricCloudsBottomAltitude = builtinParams.volumetricClouds.bottomAltitude.value;
 
             ConstantBuffer.PushGlobal(cmd, m_ConstantBuffer, m_ShaderVariablesPhysicallyBasedSkyID);
         }
@@ -548,7 +578,7 @@ namespace UnityEngine.Rendering.HighDefinition
                 cameraPosPS -= (upAltitude.w - 1.0f) * (Vector3)upAltitude.xyz;
 
             bool simpleEarthMode = pbrSky.type.value == PhysicallyBasedSkyModel.EarthSimple;
-            bool customMaterial = pbrSky.renderingMode.value == PhysicallyBasedSky.RenderingMode.Material && pbrSky.material.value != null;
+            bool customMaterial = pbrSky.renderingMode.value == PhysicallyBasedSky.RenderingMode.Material && pbrSky.material.value != null && pbrSky.material.overrideState;
             var material = customMaterial ? pbrSky.material.value : m_PbrSkyMaterial;
 
             // Common material properties
@@ -630,6 +660,7 @@ namespace UnityEngine.Rendering.HighDefinition
 
             celestialBodyData.surfaceColor = (Vector4)additional.surfaceTint.linear;
             celestialBodyData.earthshine = additional.earthshine * 0.01f; // earth reflects about 0.01% of sun light
+            celestialBodyData.shadowIndex = additional.shadowIndex;
 
             if (additional.surfaceTexture == null)
                 celestialBodyData.surfaceTextureScaleOffset = Vector4.zero;

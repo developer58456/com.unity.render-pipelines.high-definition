@@ -1,10 +1,12 @@
 # Micro Shadows
 
-Micro shadows are shadows that the High Definition Render Pipeline (HDRP) simulates for small details embedded in the Material of a GameObject, but not in its Mesh geometry. HDRP uses the details from the normal map and the ambient occlusion map to estimate the shadows those maps would cast if they were Meshes.
+Micro shadows are shadows that the High Definition Render Pipeline (HDRP) simulates for small details embedded in the Material of a GameObject, but not in its Mesh geometry.
+
+HDRP uses the details from the normal map, the ambient occlusion map, and specular occlusion to estimate the shadows those details would cast if they were meshes.
 
 In this image, the different layers of details in the Material shadow each other.
 
-![](Images/OverrideMicroShadows1.png)
+![A ground texture with micro shadows enabled and disabled. With micro shadows enabled, the twigs and moss cast more realistic-looking shadows.](Images/OverrideMicroShadows1.png)
 
 Micro shadows at 0.85 opacity on a mossy ground material viewed from the top.
 

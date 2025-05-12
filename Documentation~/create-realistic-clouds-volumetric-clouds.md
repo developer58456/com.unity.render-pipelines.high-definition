@@ -10,7 +10,7 @@ The [**Volumetric Clouds** Volume component override](volumetric-clouds-volume-o
 
 [!include[](snippets/Volume-Override-Enable-Override.md)]
 
-* In your [HDRP Asset](HDRP Asset) go to **Lighting > Volumetrics > Volumetric Clouds**.
+* In your [HDRP Asset](HDRP-Asset.md) go to **Lighting > Volumetrics > Volumetric Clouds**.
 
 * In your [Frame Settings](Frame-Settings.md) go to **Lighting > Volumetric Clouds**.
 
@@ -23,7 +23,7 @@ The [**Volumetric Clouds** Volume component override](volumetric-clouds-volume-o
 
 **Note**: When editing Volumetric Cloud properties in the Editor, set **Temporal Accumulation Factor** to a lower value. This allows you to see changes instantly, rather than blended over time.
 
-![](Images/volumetric-clouds-2.png)
+![Volumetric Clouds example.](Images/volumetric-clouds-2.png)
 
 Refer to the [Volumetric Clouds Volume Override reference](volumetric-clouds-volume-override-reference.md) for more information.
 

@@ -316,9 +316,6 @@ SHADOW_TYPE EvaluateShadow_Directional( LightLoopContext lightLoopContext, Posit
         shadow = lightLoopContext.shadowValue;
 
     #ifdef SHADOWS_SHADOWMASK
-        float3 camToPixel = posInput.positionWS - GetPrimaryCameraPosition();
-        float distanceCamToPixel2 = dot(camToPixel, camToPixel);
-
         int shadowSplitIndex = lightLoopContext.shadowContext.shadowSplitIndex;
         if (shadowSplitIndex < 0)
         {
@@ -334,7 +331,20 @@ SHADOW_TYPE EvaluateShadow_Directional( LightLoopContext lightLoopContext, Posit
         }
 
         // See comment in EvaluateBSDF_Punctual
-        shadow = light.nonLightMappedOnly ? min(shadowMask, shadow) : shadow;
+        if (light.nonLightMappedOnly)
+        {
+            shadow = min(shadowMask, shadow);
+        }
+        else
+        {
+            // Use shadowmask when shadow value ​​cannot be retrieved due to shadow caster culling.
+            float3 camToPixel = posInput.positionWS - GetPrimaryCameraPosition();
+            float distanceCamToPixel2 = dot(camToPixel, camToPixel);
+
+            HDDirectionalShadowData dsd = lightLoopContext.shadowContext.directionalShadowData;
+            float alpha = saturate(distanceCamToPixel2 * dsd.fadeScale + dsd.fadeBias);
+            shadow = min(shadow, lerp(1.0, shadowMask, alpha * alpha));
+        }
     #endif
 
         shadow = lerp(shadowMask.SHADOW_TYPE_REPLICATE, shadow, light.shadowDimmer);

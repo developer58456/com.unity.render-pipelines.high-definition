@@ -13,8 +13,8 @@ namespace UnityEditor.Rendering.HighDefinition
 
         public CommonShaderPreprocessor()
         {
-            m_ShaderResources = GraphicsSettings.GetRenderPipelineSettings<HDRenderPipelineRuntimeShaders>();
-            m_MaterialResources = GraphicsSettings.GetRenderPipelineSettings<HDRenderPipelineRuntimeMaterials>();
+           m_ShaderResources = HDRPBuildData.instance.runtimeShaders;
+           m_MaterialResources = HDRPBuildData.instance.materialResources;
         }
 
         protected override bool DoShadersStripper(HDRenderPipelineAsset hdrpAsset, Shader shader, ShaderSnippetData snippet, ShaderCompilerData inputData)
@@ -39,20 +39,17 @@ namespace UnityEditor.Rendering.HighDefinition
                 if (inputData.shaderKeywordSet.IsEnabled(m_SupportWaterAbsorption))
                     return true;
 
-                if (stripDebugVariants && snippet.passName.StartsWith(HDRenderPipeline.k_WaterMaskPass))
-                    return true;
-
-                if (shader == m_ShaderResources.waterCausticsPS ||
-                    shader == m_ShaderResources.waterFoamPS ||
-                    shader == m_ShaderResources.waterPS ||
-                    shader == m_MaterialResources.waterExclusionMaterial.shader)
+                if (stripDebugVariants && snippet.passName.StartsWith(WaterSystem.k_WaterDebugPass))
                     return true;
             }
-
-            // Volumetric clouds
-            if (!settings.supportVolumetricClouds)
+            if (HDRPBuildData.instance.waterDecalMaskAndCurrent)
             {
-                if (shader == m_ShaderResources.volumetricCloudsCombinePS)
+                if (inputData.shaderKeywordSet.IsEnabled(m_WaterDecalPartial))
+                    return true;
+            }
+            else
+            {
+                if (inputData.shaderKeywordSet.IsEnabled(m_WaterDecalComplete))
                     return true;
             }
 
@@ -292,6 +289,16 @@ namespace UnityEditor.Rendering.HighDefinition
             if (inputData.shaderKeywordSet.IsEnabled(m_ProbeVolumesL2) &&
                 (!settings.supportProbeVolume || settings.probeVolumeSHBands != ProbeVolumeSHBands.SphericalHarmonicsL2))
                 return true;
+
+            bool hasBicubicKeyword = shader.keywordSpace.FindKeyword(m_LightmapBicubicSampling.name).isValid;
+            if (hasBicubicKeyword)
+            {
+                bool useBicubicLightmapSampling = false;
+                if (GraphicsSettings.TryGetRenderPipelineSettings<LightmapSamplingSettings>(out var lightmapSamplingSettings))
+                    useBicubicLightmapSampling = lightmapSamplingSettings.useBicubicLightmapSampling;
+                if (inputData.shaderKeywordSet.IsEnabled(m_LightmapBicubicSampling) != useBicubicLightmapSampling)
+                    return true;
+            }
 
 #if !ENABLE_SENSOR_SDK
             // If the SensorSDK package is not present, make sure that all code related to it is stripped away

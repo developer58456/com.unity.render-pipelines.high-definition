@@ -34,7 +34,7 @@ The Approximate model doesn’t automatically look realistic in every lighting s
 
 The Approximate model is best for darker hair tones. For best results with lighter hair tones, use the Physical model.
 
-![](Images/hair-kajiya.png)
+![Approximate hair Material Type sample.](Images/hair-kajiya.png)
 
 <a name="hair-physical"></a>
 
@@ -61,7 +61,7 @@ Change the [**Base Color** block](hair-master-stack-reference.md#fragment-contex
 
 The Physical Material Type is based on the [Marschner](http://www.graphics.stanford.edu/papers/hair/hair-sg03final.pdf) human hair fiber reflectance model.
 
-![](Images/hair-marschner.png)
+![Physical Material Type sample.](Images/hair-marschner.png)
 
 <a name="hair-scattering"></a>
 
@@ -84,7 +84,7 @@ The Scattering Mode options appear when you select the **Physical** material typ
 | **Physical**    | Physically simulates light transport through a volume of hair (multiple scattering). This feature is not available for public use yet. |
 | **Approximate** | Estimates the appearance of light transport through a volume of hair (multiple scattering). This mode does not take into account how transmittance affects the way light travels and slows through a volume of hair. It also ignores the effect that a hair's roughness has on the spread of light. |
 
-![](Images/hair-multiple-scattering.png)
+![Hair multiple scattering sample.](Images/hair-multiple-scattering.png)
 
 <a name="hair-geometry"></a>
 ## Geometry Type
@@ -151,9 +151,9 @@ This Master Stack material type adds all its Vertex Blocks to the Vertex Context
 
 ### Fragment Context
 
-#### Default
+Depending on the [Graph Settings](#graph-settings) you use, Shader Graph can add the following blocks to the Fragment Context.
 
-When you create a new Hair Master Stack, the Fragment Context contains the following Blocks by default:
+# Approximate hair Material Type
 
 <table>
 <tr>
@@ -164,25 +164,28 @@ When you create a new Hair Master Stack, the Fragment Context contains the follo
 </tr>
 
 [!include[](snippets/shader-graph-blocks/base-color.md)]
-[!include[](snippets/shader-graph-blocks/normal-tangent-space.md)]
+[!include[](snippets/shader-graph-blocks/specular-tint.md)]
+[!include[](snippets/shader-graph-blocks/secondary-specular-tint.md)]
 [!include[](snippets/shader-graph-blocks/bent-normal.md)]
+[!include[](snippets/shader-graph-blocks/secondary-specular-shift.md)]
+[!include[](snippets/shader-graph-blocks/specular-shift.md)]
 [!include[](snippets/shader-graph-blocks/hair-strand-direction.md)]
+[!include[](snippets/shader-graph-blocks/secondary-smoothness.md)]
+[!include[](snippets/shader-graph-blocks/ambient-occlusion.md)]
+[!include[](snippets/shader-graph-blocks/smoothness.md)]
+[!include[](snippets/shader-graph-blocks/alpha.md)]
+[!include[](snippets/shader-graph-blocks/emission.md)]
+[!include[](snippets/shader-graph-blocks/alpha-clip-threshold.md)]
+[!include[](snippets/shader-graph-blocks/alpha-clip-threshold-shadow.md)]
+[!include[](snippets/shader-graph-blocks/depth-offset.md)]
+[!include[](snippets/shader-graph-blocks/normal-tangent-space.md)]
+[!include[](snippets/shader-graph-blocks/alpha-clip-threshold-depth-prepass.md)]
 [!include[](snippets/shader-graph-blocks/transmittance.md)]
 [!include[](snippets/shader-graph-blocks/rim-transmission-intensity.md)]
-[!include[](snippets/shader-graph-blocks/smoothness.md)]
-[!include[](snippets/shader-graph-blocks/ambient-occlusion.md)]
-[!include[](snippets/shader-graph-blocks/alpha.md)]
-[!include[](snippets/shader-graph-blocks/specular-tint.md)]
-[!include[](snippets/shader-graph-blocks/specular-shift.md)]
-[!include[](snippets/shader-graph-blocks/secondary-specular-tint.md)]
-[!include[](snippets/shader-graph-blocks/secondary-specular-shift.md)]
-[!include[](snippets/shader-graph-blocks/emission.md)]
 
 </table>
 
-#### Relevant
-
-Depending on the [Graph Settings](#graph-settings) you use, Shader Graph can add the following blocks to the Fragment Context:
+# Physical Material Type
 
 <table>
 <tr>
@@ -192,22 +195,20 @@ Depending on the [Graph Settings](#graph-settings) you use, Shader Graph can add
 <th>Default Value</th>
 </tr>
 
-[!include[](snippets/shader-graph-blocks/alpha-clip-threshold.md)]
-[!include[](snippets/shader-graph-blocks/alpha-clip-threshold-depth-postpass.md)]
-[!include[](snippets/shader-graph-blocks/alpha-clip-threshold-depth-prepass.md)]
-[!include[](snippets/shader-graph-blocks/alpha-clip-threshold-shadow.md)]
-[!include[](snippets/shader-graph-blocks/baked-back-gi.md)]
-[!include[](snippets/shader-graph-blocks/baked-gi.md)]
-[!include[](snippets/shader-graph-blocks/depth-offset.md)]
-[!include[](snippets/shader-graph-blocks/normal-object-space.md)]
-[!include[](snippets/shader-graph-blocks/normal-world-space.md)]
-[!include[](snippets/shader-graph-blocks/specular-aa-screen-space-variance.md)]
-[!include[](snippets/shader-graph-blocks/specular-aa-threshold.md)]
-[!include[](snippets/shader-graph-blocks/specular-occlusion.md)]
+[!include[](snippets/shader-graph-blocks/base-color.md)]
+[!include[](snippets/shader-graph-blocks/bent-normal.md)]
+[!include[](snippets/shader-graph-blocks/hair-strand-direction.md)]
+[!include[](snippets/shader-graph-blocks/ambient-occlusion.md)]
+[!include[](snippets/shader-graph-blocks/smoothness.md)]
+[!include[](snippets/shader-graph-blocks/emission.md)]
+[!include[](snippets/shader-graph-blocks/normal-tangent-space.md)]
+[!include[](snippets/shader-graph-blocks/alpha.md)]
 [!include[](snippets/shader-graph-blocks/smoothness-radial.md)]
 [!include[](snippets/shader-graph-blocks/cuticle-angle.md)]
-[!include[](snippets/shader-graph-blocks/strand-count-probe.md)]
-[!include[](snippets/shader-graph-blocks/strand-shadow-bias.md)]
+[!include[](snippets/shader-graph-blocks/alpha-clip-threshold.md)]
+[!include[](snippets/shader-graph-blocks/depth-offset.md)]
+[!include[](snippets/shader-graph-blocks/alpha-clip-threshold-shadow.md)]
+[!include[](snippets/shader-graph-blocks/alpha-clip-threshold-depth-prepass.md)]
 
 </table>
 
@@ -217,6 +218,8 @@ Depending on the [Graph Settings](#graph-settings) you use, Shader Graph can add
 <table>
 <tr>
 <th>Property</th>
+<th>Option</th>
+<th>Sub-option</th>
 <th>Description</th>
 </tr>
 

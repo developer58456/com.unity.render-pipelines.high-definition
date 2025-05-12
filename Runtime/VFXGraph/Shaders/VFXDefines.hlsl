@@ -17,7 +17,6 @@
 #if HDRP_LIT
 #define VFX_NEEDS_POSWS_INTERPOLATOR 1 // Needed for LPPV
 #elif IS_TRANSPARENT_PARTICLE // Fog for opaque is handled in a dedicated pass
-#define USE_FOG 1
 #define VFX_NEEDS_POSWS_INTERPOLATOR 1
 #endif
 
@@ -58,6 +57,10 @@
 #define CULL_VERTEX(o) return;
 #else
 #define CULL_VERTEX(o) { o.VFX_VARYING_POSCS.x = VFX_NAN; return o; }
+#endif
+
+#if HAS_STRIPS
+#define HAS_STRIPS_DATA 1
 #endif
 
 // Enable the support of global mip bias in the shader.

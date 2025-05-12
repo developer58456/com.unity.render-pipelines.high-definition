@@ -585,6 +585,10 @@ void EncodeIntoGBuffer( SurfaceData surfaceData
     float encodedSpecularOcclusion = surfaceData.specularOcclusion;
 #endif
 
+    // Remove SSS in case the mask is 0
+    if (surfaceData.subsurfaceMask == 0)
+        surfaceData.materialFeatures &= ~(MATERIALFEATUREFLAGS_LIT_SUBSURFACE_SCATTERING);
+
     // Ensure that surfaceData.coatMask is 0 if the feature is not enabled
     // Warning: overriden by Translucent if using a transmission tint
     float coatMask = HasFlag(surfaceData.materialFeatures, MATERIALFEATUREFLAGS_LIT_CLEAR_COAT) ? surfaceData.coatMask : 0.0;
@@ -909,13 +913,7 @@ uint DecodeFromGBuffer(uint2 positionSS, uint tileFeatureFlags, out BSDFData bsd
         SSSData sssData;
         float transmissionMask;
 
-        #ifdef DEBUG_DISPLAY
-        // Note that we don't use sssData.subsurfaceMask here. But it is still assign so we can have
-        // the information in the material debug view.
         UnpackFloatInt8bit(inGBuffer0.a, 16, sssData.subsurfaceMask, sssData.diffusionProfileIndex);
-        #else
-        sssData.subsurfaceMask = 0.0f; // Initialize to prevent compiler error, but value is never used
-        #endif
 
         // We read profile from G-Buffer 2 so the compiler can optimize away the read from the G-Buffer 0 to the very end (in PostEvaluateBSDF)
         // When using translucency, we exchange diffusion profile and coat mask
@@ -1791,7 +1789,7 @@ IndirectLighting EvaluateBSDF_ScreenSpaceReflection(PositionInputs posInput,
     //
     // Note that the SSR with clear coat is a binary state, which means we should never enter the if condition if we don't have an active
     // clear coat (which is not guaranteed by the HasFlag condition in deferred mode in some cases). We then need to make sure that coatMask is actually non zero.
-    if (HasFlag(bsdfData.materialFeatures, MATERIALFEATUREFLAGS_LIT_CLEAR_COAT) && bsdfData.coatMask > 0.0)
+    if (HasFlag(bsdfData.materialFeatures, MATERIALFEATUREFLAGS_LIT_CLEAR_COAT) && bsdfData.coatMask >= 0.0)
     {
         // We use the coat-traced light according to how similar the base lobe roughness is to the coat roughness
         // (we can assume the coat is always smoother):
@@ -1885,12 +1883,12 @@ IndirectLighting EvaluateBSDF_ScreenspaceRefraction(LightLoopContext lightLoopCo
     float2 samplingPositionNDC = lerp(posInput.positionNDC, hit.positionNDC, refractionOffsetMultiplier);
     float2 samplingUV = samplingPositionNDC * _RTHandleScaleHistory.xy;
     float mipLevel = preLightData.transparentSSMipLevel;
-    
+
     // Clamp to avoid potential leaks around the edges when the dynamic resolution is set to low and the smoothness too.
     float2 diffLimit = _ColorPyramidUvScaleAndLimitCurrentFrame.xy - _ColorPyramidUvScaleAndLimitCurrentFrame.zw;
     float2 diffLimitMipAdjusted = diffLimit * pow(2.0,2.0 + ceil(abs(mipLevel)));
     float2 limit = _ColorPyramidUvScaleAndLimitCurrentFrame.xy - diffLimitMipAdjusted;
-    
+
     samplingUV.xy = min(samplingUV.xy, limit);
 
     float3 preLD = SAMPLE_TEXTURE2D_X_LOD(_ColorPyramidTexture, s_trilinear_clamp_sampler, samplingUV, mipLevel).rgb;

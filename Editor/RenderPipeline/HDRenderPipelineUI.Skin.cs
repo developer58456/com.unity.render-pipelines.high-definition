@@ -55,6 +55,7 @@ namespace UnityEditor.Rendering.HighDefinition
             public static readonly GUIContent sampleCountQuality = EditorGUIUtility.TrTextContent("Sample Count");
             public static readonly GUIContent pbrResolutionQualityTitle = EditorGUIUtility.TrTextContent("Enable High Resolution");
             public static readonly GUIContent resolutionQuality = EditorGUIUtility.TrTextContent("Resolution");
+            public static readonly GUIContent adaptiveSamplingWeight = EditorGUIUtility.TrTextContent("Adaptive Sampling Weight");
             public static readonly GUIContent highQualityPrefiltering = EditorGUIUtility.TrTextContent("High Quality Prefiltering");
             public static readonly GUIContent highQualityFiltering = EditorGUIUtility.TrTextContent("High Quality Filtering");
             public static readonly GUIContent dofPhysicallyBased = EditorGUIUtility.TrTextContent("Physically Based");
@@ -121,11 +122,12 @@ namespace UnityEditor.Rendering.HighDefinition
             public static readonly GUIContent supportWaterContent = EditorGUIUtility.TrTextContent("Enable", "When enabled, HDRP allocates memory for the water surfaces simulation and rendering. This allows you to use water surfaces in your Unity Project.");
             public static readonly GUIContent waterSimulationResolutionContent = EditorGUIUtility.TrTextContent("Simulation Resolution", "Specifies the resolution of the water simulation. A higher resolution increases the visual quality, but increases the cost.");
             public static readonly GUIContent supportWaterDeformationContent = EditorGUIUtility.TrTextContent("Deformation", "When enabled, HDRP allocates additional memory to support water deformation.");
-            public static readonly GUIContent deformationAtlasSizeContent = EditorGUIUtility.TrTextContent("Deformation Atlas Size", "Specifies the size of the atlas used to store texture water deformers.");
-            public static readonly GUIContent maximumDeformerCountContent = EditorGUIUtility.TrTextContent("Maximum Deformer Count", "Sets the maximum amount of water deformers HDRP can support.");
+            public static readonly GUIContent waterDecalAtlasSizeContent = EditorGUIUtility.TrTextContent("Decal Atlas Size", "Specifies the size of the atlas used to store texture water decals.");
+            public static readonly GUIContent maximumWaterDecalCountContent = EditorGUIUtility.TrTextContent("Maximum Decal Count", "Sets the maximum amount of water decals HDRP can support.");
             public static readonly GUIContent supportWaterFoamContent = EditorGUIUtility.TrTextContent("Foam", "When enabled, HDRP allocates additional memory to support water foam.");
             public static readonly GUIContent foamAtlasSizeContent = EditorGUIUtility.TrTextContent("Foam Atlas Size", "Specifies the size of the atlas used to store texture water foam.");
             public static readonly GUIContent supportWaterExclusionContent = EditorGUIUtility.TrTextContent("Exclusion", "When enabled, HDRP allocates a stencil bit to support water excluders.");
+            public static readonly GUIContent supportWaterHorizontalDeformationContent = EditorGUIUtility.TrTextContent("Horizontal Deformation", "When enabled, HDRP allocates additional memory to support water horizontal deformation. Enabling this property limits compatibility with other water system features (like scripts interactions or underwater), refer to the documentation for more details.");
 
             // High Quality Line Rendering
             public static readonly GUIContent highQualityLineRenderingSubTitle = EditorGUIUtility.TrTextContent("High Quality Line Rendering");
@@ -153,6 +155,7 @@ namespace UnityEditor.Rendering.HighDefinition
             public static readonly GUIContent supportSSGIContent = EditorGUIUtility.TrTextContent("Screen Space Global Illumination", "When enabled, HDRP allocates memory for processing screen space global illumination (SSGI). This allows you to use SSGI in your Unity Project.");
             public static readonly GUIContent renderingLayerMaskBuffer = EditorGUIUtility.TrTextContent("Rendering Layer Mask Buffer", "When enabled, HDRP writes Rendering Layer Mask of Renderers to a buffer target that can be sampled in a shader in order to create fullscreen effects.\nThis comes with a performance and a memory cost.");
             public static readonly GUIContent supportedSSSContent = EditorGUIUtility.TrTextContent("Subsurface Scattering", "When enabled, HDRP allocates memory for processing subsurface scattering (SSS). This allows you to use SSS in your Unity Project.");
+            public static readonly GUIContent subsurfaceScatteringBorderAttenuation = EditorGUIUtility.TrTextContent("Support Border Attenuation", "When enabled, the subsurface scattering takes into account the occlusion of near objects with no subsurface-scattering or a different diffusion profile.");
             public static readonly GUIContent sssSampleBudget = EditorGUIUtility.TrTextContent("Sample Budget", "Maximum number of samples the Subsurface Scattering algorithm is allowed to take.");
             public static readonly GUIContent sssDownsampleSteps = EditorGUIUtility.TrTextContent("Downsample Level", "The number of downsample steps done to the source irradance textrure before it is used by the Subsurface Scattering algorithm. Higher value will improve performance, but might lower quality.");
             public static readonly GUIContent supportVolumetricFogContent = EditorGUIUtility.TrTextContent("Volumetric Fog", "When enabled, HDRP allocates Shader variants and memory for volumetric effects. This allows you to use volumetric lighting and fog in your Unity Project.");
@@ -161,6 +164,7 @@ namespace UnityEditor.Rendering.HighDefinition
             public static readonly GUIContent supportLightLayerContent = EditorGUIUtility.TrTextContent("Light Layers", "When enabled, HDRP allocates memory for processing Light Layers. This allows you to use Light Layers in your Unity Project. For deferred rendering, this allocation includes an extra render target in memory and extra cost.");
             public static readonly GUIContent colorBufferFormatContent = EditorGUIUtility.TrTextContent("Color Buffer Format", "Specifies the format used by the scene color render target. R11G11B10 is a faster option and should have sufficient precision.");
             public static readonly GUIContent supportCustomPassContent = EditorGUIUtility.TrTextContent("Custom Pass", "When enabled, HDRP allocates a custom pass buffer. It also enable custom passes inside Custom Pass Volume components.");
+            public static readonly GUIContent supportVariableRateShadingContent = EditorGUIUtility.TrTextContent("Variable Rate Shading", "When enabled, HDRP enables the usage of variable rate shading in custom passes.");
             public static readonly GUIContent customBufferFormatContent = EditorGUIUtility.TrTextContent("Custom Buffer Format", "Specifies the format used by the custom pass render target.");
             public static readonly GUIContent supportLitShaderModeContent = EditorGUIUtility.TrTextContent("Lit Shader Mode", "Specifies the rendering modes HDRP supports for Lit Shaders. HDRP removes all allocated memory and Shader variants for modes you do not specify.");
             public static readonly GUIContent MSAASampleCountContent = EditorGUIUtility.TrTextContent("Multisample Anti-aliasing Quality", "Specifies the default quality for MSAA. Set Lit Shader Mode to Forward Only or Both to use this feature.\nMSAA is not supported when water or raytracing is enabled");
@@ -269,6 +273,9 @@ namespace UnityEditor.Rendering.HighDefinition
             public static readonly GUIContent enableDLSS = EditorGUIUtility.TrTextContent("Enable DLSS", "Enables NVIDIA Deep Learning Super Sampling (DLSS).");
             public static readonly GUIContent DLSSQualitySettingContent = EditorGUIUtility.TrTextContent("DLSS Mode", "Selects a performance quality setting for NVIDIA Deep Learning Super Sampling (DLSS).");
             public static readonly GUIContent DLSSInjectionPoint = EditorGUIUtility.TrTextContent("DLSS Injection Point", "The injection point at which to apply DLSS upscaling.");
+            public static readonly GUIContent defaultInjectionPoint = EditorGUIUtility.TrTextContent("Injection Point", "The injection point at which to apply the upscaling.");
+            public static readonly GUIContent TAAUInjectionPoint = EditorGUIUtility.TrTextContent("TAA Upscale Injection Point", "The injection point at which to apply the upscaling.");
+            public static readonly GUIContent STPInjectionPoint = EditorGUIUtility.TrTextContent("STP Injection Point", "The injection point at which to apply the upscaling.");
             public static readonly GUIContent DLSSUseOptimalSettingsContent = EditorGUIUtility.TrTextContent("DLSS Use Optimal Settings", "Sets the sharpness and scale automatically for NVIDIA Deep Learning Super Sampling, depending on the values of quality settings. When DLSS Optimal Settings is on, the percentage settings for Dynamic Resolution Scaling are ignored.");
             public static readonly GUIContent DLSSSharpnessContent = EditorGUIUtility.TrTextContent("DLSS Sharpness", "NVIDIA Deep Learning Super Sampling pixel sharpness of upsampler. Controls how the DLSS upsampler will render edges on the image. More sharpness usually means more contrast and clearer image but can increase flickering and fireflies. This setting is ignored if optimal settings are used.");
 
@@ -347,8 +354,8 @@ namespace UnityEditor.Rendering.HighDefinition
             public static readonly GUIContent volumeProfileLabel = EditorGUIUtility.TrTextContent("Volume Profile", "Settings that will override the values defined in the Default Volume Profile set in the Render Pipeline Global settings. Local Volumes inside scenes may override these settings further.");
             public static System.Lazy<GUIStyle> volumeProfileContextMenuStyle = new(() => new GUIStyle(CoreEditorStyles.contextMenuStyle) { margin = new RectOffset(0, 1, 3, 0) });
 
-            public static readonly GUIContent[] shadowBitDepthNames = { new GUIContent("32 bit"), new GUIContent("16 bit") };
-            public static readonly int[] shadowBitDepthValues = { (int)DepthBits.Depth32, (int)DepthBits.Depth16 };
+            public static readonly GUIContent[] shadowBitDepthNames = { new GUIContent("32 bit"), new GUIContent("16 bit"), new GUIContent("24 bit") };
+            public static readonly int[] shadowBitDepthValues = { (int)DepthBits.Depth32, (int)DepthBits.Depth16, (int)DepthBits.Depth24 };
 
             public static readonly GUIContent gpuResidentDrawerMode = EditorGUIUtility.TrTextContent("GPU Resident Drawer", "Enables draw submission through the GPU Resident Drawer, which can improve CPU performance");
             public static readonly GUIContent smallMeshScreenPercentage = EditorGUIUtility.TrTextContent("Small-Mesh Screen-Percentage", "Default minimum screen percentage (0-20%) gpu-driven Renderers can cover before getting culled. If a Renderer is part of a LODGroup, this will be ignored.");

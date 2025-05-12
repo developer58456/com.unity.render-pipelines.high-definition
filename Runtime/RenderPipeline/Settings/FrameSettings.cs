@@ -156,8 +156,8 @@ namespace UnityEngine.Rendering.HighDefinition
         [FrameSettingsField(0, autoName: Water, positiveDependencies: new[] { TransparentObjects, Refraction }, customOrderInGroup: 4, tooltip: "When enabled, Cameras using these Frame Settings render water surfaces.")]
         Water = 99,
         /// <summary>When enabled, Cameras using these Frame Settings will support water deformers.</summary>
-        [FrameSettingsField(0, autoName: WaterDeformation, positiveDependencies: new[] { TransparentObjects, Refraction, Water }, customOrderInGroup: 4, tooltip: "When enabled, Cameras using these Frame Settings will support water deformers.")]
-        WaterDeformation = 102,
+        [FrameSettingsField(0, autoName: WaterDecals, positiveDependencies: new[] { TransparentObjects, Refraction, Water }, customOrderInGroup: 4, tooltip: "When enabled, Cameras using these Frame Settings will support water decals.")]
+        WaterDecals = 102,
         /// <summary>When enabled, Cameras using these Frame Settings will support water excluders.</summary>
         [FrameSettingsField(0, autoName: WaterExclusion, positiveDependencies: new[] { TransparentObjects, Refraction, Water }, customOrderInGroup: 4, tooltip: "When enabled, Cameras using these Frame Settings will support water excluders.")]
         WaterExclusion = 101,
@@ -183,6 +183,9 @@ namespace UnityEngine.Rendering.HighDefinition
         /// <summary>When enabled, HDRP renders custom passes contained in CustomPassVolume components.</summary>
         [FrameSettingsField(0, autoName: CustomPass, customOrderInGroup: 11, tooltip: "When enabled, HDRP renders custom passes contained in CustomPassVolume components.")]
         CustomPass = 6,
+        /// <summary>When enabled, HDRP renders custom passes contained in CustomPassVolume components.</summary>
+        [FrameSettingsField(0, autoName: VariableRateShading, positiveDependencies: new[] { CustomPass }, customOrderInGroup: 12, tooltip: "When enabled, HDRP updates variable rate shading for Cameras using these Frame Settings.")]
+        VariableRateShading = 7,
         /// <summary>When enabled, HDRP can use virtual texturing.</summary>
         [FrameSettingsField(0, autoName: VirtualTexturing, customOrderInGroup: 105, tooltip: "Virtual Texturing needs to be enabled first in Project Settings > Player > Other Settings > Virtual Texturing.")]
         VirtualTexturing = 68,
@@ -233,41 +236,41 @@ namespace UnityEngine.Rendering.HighDefinition
         /// <summary>When enabled, HDRP adds bloom to Cameras affected by a Volume containing the Bloom override.</summary>
         [FrameSettingsField(0, autoName: Bloom, positiveDependencies: new[] { Postprocess }, customOrderInGroup: 19, tooltip: "When enabled, HDRP adds bloom to Cameras affected by a Volume containing the Bloom override.")]
         Bloom = 84,
-        /// <summary>When enabled, HDRP adds lens flare to Cameras.</summary>
-        [FrameSettingsField(0, autoName: LensFlareDataDriven, positiveDependencies: new[] { Postprocess }, customOrderInGroup: 19, tooltip: "When enabled, HDRP adds lens flare to Cameras.")]
-        LensFlareDataDriven = 97,
         /// <summary>When enabled, HDRP adds Screen Space lens flare post process to Cameras affected by a Volume containing the Screen Space Lens Flare override.</summary>
-        [FrameSettingsField(0, autoName: LensFlareScreenSpace, positiveDependencies: new[] { Postprocess }, customOrderInGroup: 19, tooltip: "When enabled, HDRP adds Screen Space Lens Flare post process to Cameras affected by a Volume containing the Screen Space Lens Flare override.")]
+        [FrameSettingsField(0, displayedName: "Screen Space Lens Flare", positiveDependencies: new[] { Postprocess, Bloom }, customOrderInGroup: 19, tooltip: "When enabled, HDRP adds Screen Space Lens Flare post process to Cameras affected by a Volume containing the Screen Space Lens Flare override.")]
         LensFlareScreenSpace = 104,
+        /// <summary>When enabled, HDRP adds lens flare to Cameras.</summary>
+        [FrameSettingsField(0, autoName: LensFlareDataDriven, positiveDependencies: new[] { Postprocess }, customOrderInGroup: 20, tooltip: "When enabled, HDRP adds lens flare to Cameras.")]
+        LensFlareDataDriven = 97,
         /// <summary>When enabled, HDRP adds lens distortion to Cameras affected by a Volume containing the Lens Distortion override.</summary>
-        [FrameSettingsField(0, autoName: LensDistortion, positiveDependencies: new[] { Postprocess }, customOrderInGroup: 19, tooltip: "When enabled, HDRP adds lens distortion to Cameras affected by a Volume containing the Lens Distortion override.")]
+        [FrameSettingsField(0, autoName: LensDistortion, positiveDependencies: new[] { Postprocess }, customOrderInGroup: 20, tooltip: "When enabled, HDRP adds lens distortion to Cameras affected by a Volume containing the Lens Distortion override.")]
         LensDistortion = 85,
         /// <summary>When enabled, HDRP adds chromatic aberration to Cameras affected by a Volume containing the Chromatic Aberration override.</summary>
-        [FrameSettingsField(0, autoName: ChromaticAberration, positiveDependencies: new[] { Postprocess }, customOrderInGroup: 19, tooltip: "When enabled, HDRP adds chromatic aberration to Cameras affected by a Volume containing the Chromatic Aberration override.")]
+        [FrameSettingsField(0, autoName: ChromaticAberration, positiveDependencies: new[] { Postprocess }, customOrderInGroup: 20, tooltip: "When enabled, HDRP adds chromatic aberration to Cameras affected by a Volume containing the Chromatic Aberration override.")]
         ChromaticAberration = 86,
         /// <summary>When enabled, HDRP adds vignette to Cameras affected by a Volume containing the Vignette override.</summary>
-        [FrameSettingsField(0, autoName: Vignette, positiveDependencies: new[] { Postprocess }, customOrderInGroup: 19, tooltip: "When enabled, HDRP adds vignette to Cameras affected by a Volume containing the Vignette override.")]
+        [FrameSettingsField(0, autoName: Vignette, positiveDependencies: new[] { Postprocess }, customOrderInGroup: 20, tooltip: "When enabled, HDRP adds vignette to Cameras affected by a Volume containing the Vignette override.")]
         Vignette = 87,
         /// <summary>When enabled, HDRP processes color grading for Cameras using these Frame Settings.</summary>
-        [FrameSettingsField(0, autoName: ColorGrading, positiveDependencies: new[] { Postprocess }, customOrderInGroup: 19, tooltip: "When enabled, HDRP processes color grading for Cameras using these Frame Settings.")]
+        [FrameSettingsField(0, autoName: ColorGrading, positiveDependencies: new[] { Postprocess }, customOrderInGroup: 20, tooltip: "When enabled, HDRP processes color grading for Cameras using these Frame Settings.")]
         ColorGrading = 88,
         /// <summary>When enabled, HDRP processes tonemapping for Cameras using these Frame Settings.</summary>
-        [FrameSettingsField(0, autoName: Tonemapping, positiveDependencies: new[] { Postprocess }, customOrderInGroup: 19, tooltip: "When enabled, HDRP processes tonemapping for Cameras using these Frame Settings.")]
+        [FrameSettingsField(0, autoName: Tonemapping, positiveDependencies: new[] { Postprocess }, customOrderInGroup: 20, tooltip: "When enabled, HDRP processes tonemapping for Cameras using these Frame Settings.")]
         Tonemapping = 93,
         /// <summary>When enabled, HDRP adds film grain to Cameras affected by a Volume containing the Film Grain override.</summary>
-        [FrameSettingsField(0, autoName: FilmGrain, positiveDependencies: new[] { Postprocess }, customOrderInGroup: 19, tooltip: "When enabled, HDRP adds film grain to Cameras affected by a Volume containing the Film Grain override.")]
+        [FrameSettingsField(0, autoName: FilmGrain, positiveDependencies: new[] { Postprocess }, customOrderInGroup: 20, tooltip: "When enabled, HDRP adds film grain to Cameras affected by a Volume containing the Film Grain override.")]
         FilmGrain = 89,
         /// <summary>When enabled, HDRP processes dithering for Cameras using these Frame Settings.</summary>
-        [FrameSettingsField(0, autoName: Dithering, positiveDependencies: new[] { Postprocess }, customOrderInGroup: 19, tooltip: "When enabled, HDRP processes dithering for Cameras using these Frame Settings.")]
+        [FrameSettingsField(0, autoName: Dithering, positiveDependencies: new[] { Postprocess }, customOrderInGroup: 20, tooltip: "When enabled, HDRP processes dithering for Cameras using these Frame Settings.")]
         Dithering = 90,
         /// <summary>When enabled, HDRP processes anti-aliasing for camera using these Frame Settings.</summary>
-        [FrameSettingsField(0, displayedName: "Anti-aliasing", positiveDependencies: new[] { Postprocess }, customOrderInGroup: 19, tooltip: "When enabled, HDRP processes anti-aliasing for camera using these Frame Settings.")]
+        [FrameSettingsField(0, displayedName: "Anti-aliasing", positiveDependencies: new[] { Postprocess }, customOrderInGroup: 20, tooltip: "When enabled, HDRP processes anti-aliasing for camera using these Frame Settings.")]
         Antialiasing = 91,
         /// <summary>When enabled, HDRP processes a post-processing render pass for Cameras using these Frame Settings.</summary>
-        [FrameSettingsField(0, displayedName: "After Post-process", customOrderInGroup: 20, tooltip: "When enabled, HDRP processes a post-processing render pass for Cameras using these Frame Settings.")]
+        [FrameSettingsField(0, displayedName: "After Post-process", customOrderInGroup: 21, tooltip: "When enabled, HDRP processes a post-processing render pass for Cameras using these Frame Settings.")]
         AfterPostprocess = 17,
         /// <summary>When enabled, Cameras that don't use TAA process a depth test for Materials in the AfterPostProcess rendering pass.</summary>
-        [FrameSettingsField(0, displayedName: "Depth Test", positiveDependencies: new[] { AfterPostprocess }, customOrderInGroup: 20, tooltip: "When enabled, Cameras that don't use TAA process a depth test for Materials in the AfterPostProcess rendering pass.")]
+        [FrameSettingsField(0, displayedName: "Depth Test", positiveDependencies: new[] { AfterPostprocess }, customOrderInGroup: 21, tooltip: "When enabled, Cameras that don't use TAA process a depth test for Materials in the AfterPostProcess rendering pass.")]
         ZTestAfterPostProcessTAA = 19,
 
         // true <=> Fixed, false <=> FromQualitySettings (default)
@@ -316,7 +319,7 @@ namespace UnityEngine.Rendering.HighDefinition
         /// <summary>When enabled, Cameras using these Frame Settings calculate Screen Space Ambient Occlusion.</summary>
         [FrameSettingsField(1, displayedName: "Screen Space Ambient Occlusion", tooltip: "When enabled, Cameras using these Frame Settings calculate Screen Space Ambient Occlusion (Depends on \"Screen Space Ambient Occlusion\" in current HDRP Asset).")]
         SSAO = 24,
-        /// <summary>When enabled, Cameras using these Frame Settings calculate Transparent Screen Space Global Illumination.</summary>
+        /// <summary>When enabled, Cameras using these Frame Settings calculate Screen Space Global Illumination.</summary>
         [FrameSettingsField(1, displayedName: "Screen Space Global Illumination", customOrderInGroup: 25, tooltip: "When enabled, Cameras using these Frame Settings calculate Screen Space Global Illumination (Depends on \"Screen Space Global Illumination\" in current HDRP Asset).")]
         SSGI = 95,
         /// <summary>When enabled, Cameras using these Frame Settings render subsurface scattering (SSS) effects for GameObjects that use a SSS Material.</summary>
@@ -353,7 +356,7 @@ namespace UnityEngine.Rendering.HighDefinition
         [FrameSettingsField(1, displayedName: "Fog", tooltip: "When enabled, Cameras using these Frame Settings render fog effects.")]
         AtmosphericScattering = 27,
         /// <summary>When enabled, Cameras using these Frame Settings render volumetric effects such as volumetric fog and lighting.</summary>
-        [FrameSettingsField(1, autoName: Volumetrics, positiveDependencies: new[] { AtmosphericScattering }, tooltip: "When enabled, Cameras using these Frame Settings render volumetric effects such as volumetric fog and lighting (Depends on \"Volumetrics\" in current HDRP Asset).")]
+        [FrameSettingsField(1, displayedName: "Volumetric Fog", positiveDependencies: new[] { AtmosphericScattering }, tooltip: "When enabled, Cameras using these Frame Settings render volumetric effects such as volumetric fog and lighting (Depends on \"Volumetrics\" in current HDRP Asset).")]
         Volumetrics = 28,
         /// <summary>When enabled, Cameras using these Frame Settings use several previous frames to calculate volumetric effects which increases their overall quality at run time.</summary>
         [FrameSettingsField(1, displayedName: "Reprojection", positiveDependencies: new[] { AtmosphericScattering, Volumetrics }, tooltip: "When enabled, Cameras using these Frame Settings use several previous frames to calculate volumetric effects which increases their overall quality at run time.")]
@@ -707,11 +710,11 @@ namespace UnityEngine.Rendering.HighDefinition
             sanitizedFrameSettings.bitDatas[(uint)FrameSettingsField.FullResolutionCloudsForSky] &= sanitizedFrameSettings.bitDatas[(uint)FrameSettingsField.VolumetricClouds];
 
             bool water = sanitizedFrameSettings.bitDatas[(uint)FrameSettingsField.Water] &= sanitizedFrameSettings.bitDatas[(uint)FrameSettingsField.Refraction] && renderPipelineSettings.supportWater && notPreview;
-            sanitizedFrameSettings.bitDatas[(uint)FrameSettingsField.WaterDeformation] &= water && renderPipelineSettings.supportWaterDeformation;
+            sanitizedFrameSettings.bitDatas[(uint)FrameSettingsField.WaterDecals] &= water && renderPipelineSettings.supportWaterDecals;
             sanitizedFrameSettings.bitDatas[(uint)FrameSettingsField.WaterExclusion] &= water && renderPipelineSettings.supportWaterExclusion;
 
             // Disable Lens Flares if they are unchecked in the HDRP Assets
-            sanitizedFrameSettings.bitDatas[(uint)FrameSettingsField.LensFlareScreenSpace] &= sanitizedFrameSettings.bitDatas[(uint)FrameSettingsField.LensFlareScreenSpace] && renderPipelineSettings.supportScreenSpaceLensFlare;
+            sanitizedFrameSettings.bitDatas[(uint)FrameSettingsField.LensFlareScreenSpace] &= sanitizedFrameSettings.bitDatas[(uint)FrameSettingsField.Bloom] && sanitizedFrameSettings.bitDatas[(uint)FrameSettingsField.LensFlareScreenSpace] && renderPipelineSettings.supportScreenSpaceLensFlare;
             sanitizedFrameSettings.bitDatas[(uint)FrameSettingsField.LensFlareDataDriven] &= sanitizedFrameSettings.bitDatas[(uint)FrameSettingsField.LensFlareDataDriven] && renderPipelineSettings.supportDataDrivenLensFlare;
 
             // We must take care of the scene view fog flags in the editor
@@ -756,6 +759,10 @@ namespace UnityEngine.Rendering.HighDefinition
 
             sanitizedFrameSettings.bitDatas[(uint)FrameSettingsField.CustomPass] &= renderPipelineSettings.supportCustomPass;
             sanitizedFrameSettings.bitDatas[(uint)FrameSettingsField.CustomPass] &= camera.cameraType != CameraType.Preview;
+
+            sanitizedFrameSettings.bitDatas[(uint)FrameSettingsField.VariableRateShading] &= renderPipelineSettings.supportCustomPass;
+            sanitizedFrameSettings.bitDatas[(uint)FrameSettingsField.VariableRateShading] &= renderPipelineSettings.supportVariableRateShading;
+            sanitizedFrameSettings.bitDatas[(uint)FrameSettingsField.VariableRateShading] &= camera.cameraType == CameraType.Game;
 
             sanitizedFrameSettings.bitDatas[(uint)FrameSettingsField.CustomPostProcess] &= camera.cameraType != CameraType.Preview;
 

@@ -1,5 +1,5 @@
 
-# Use the Water System in your Project
+# Use the water system in your Project
 
 This page provides an overview of the basic workflow to include a water surface simulation in your project, along with three configuration examples that may help you better understand how to adjust water properties to meet your needs.
 
@@ -24,10 +24,7 @@ This is especially important when you upgrade your project from an earlier versi
 1. Select a global Volume in your scene, such as the **Sky and Fog Volume**.
 2. Click **Add Override**.
 3. Select **Lighting** > **Water Rendering**.
-4. Set the Water **Enable** property to True.
-
-![](Images/WaterSystem-EnableTrue.png)
-
+4. In the **Water Rendering** component, set **State** to **Enabled**.
 
 This is especially important when you upgrade your project from an earlier version of Unity, because water is inactive by default. If your project originates in HDRP 14 (Unity 2022.2) or later, the water implementation may work even if you only enable it in the **Quality** settings.
 
@@ -52,10 +49,7 @@ To simulate stormy conditions, you might:
 * Choose darker **Color** values for **Refraction** and **Scattering**.
 * You can also enable **Foam**.
 
-<br/>
-<img src="Images/watersystem-StormySea.png">
-<br/>
-<br/>
+![Water system: Stormy sea](Images/watersystem-StormySea.png)
 
 ### Dirty river
 To simulate a polluted or silty river, you could:
@@ -64,10 +58,7 @@ To simulate a polluted or silty river, you could:
 * Disable **Caustics**.
 * You can also add a [Decal](decals.md) that resembles fragments of debris.
 
-<br/>
-<img src="Images/watersystem-PollutedRiver.png">
-<br/>
-<br/>
+![Water system: Dirty river](Images/watersystem-PollutedRiver.png)
 
 ### Calm, clean swimming pool on a sunny day
 To simulate a clean outdoor swimming pool on a clear day with little wind:
@@ -78,21 +69,14 @@ To simulate a clean outdoor swimming pool on a clear day with little wind:
 * Adjust the **Virtual Plane Distance** to a value appropriate to the depth of your pool.
 * In the **Refraction** properties, reduce **Absorption Distance**, to make the water more transparent. Increase **Maximum Distance** to extend the range of the refraction effect, especially if you have scenery in the water.
 
-<br/>
-<img src="Images/watersystem-shallowpoolsunny.png">
-<br/>
-<br/>
+![Water system: Shallow swimming pool, sunny day](Images/watersystem-shallowpoolsunny.png)
 
 ### A deep swimming pool
 * Somewhat darken the **Color** properties for **Scattering** and **Refraction**.
 * Reduce the **Absorption Distance** slightly.
 * Increase **Maximum Distance** if there are caustics or objects in the water that make the refraction effect visible.
 
-<br/>
-<img src="Images/watersystem-deeppoolsunny.png">
-<br/>
-<br/>
-
+![Water system: Deep swimming pool, sunny day](Images/watersystem-deeppoolsunny.png)
 
 ## Additional resources
-* <a href="settings-and-properties-related-to-the-water-system.md">Settings and properties related to the Water System</a>
+* <a href="settings-and-properties-related-to-the-water-system.md">Settings and properties related to the water system</a>

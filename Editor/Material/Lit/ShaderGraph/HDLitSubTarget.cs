@@ -61,7 +61,7 @@ namespace UnityEditor.Rendering.HighDefinition.ShaderGraph
             descriptor.passes.Add(HDShaderPasses.GenerateLitDepthOnly(TargetsVFX(), systemData.tessellation));
             descriptor.passes.Add(HDShaderPasses.GenerateGBuffer(TargetsVFX(), systemData.tessellation));
             descriptor.passes.Add(HDShaderPasses.GenerateLitForward(TargetsVFX(), systemData.tessellation));
-            if (!systemData.tessellation) // Raytracing don't support tessellation neither VFX
+            if (!systemData.tessellation && supportRaytracing) // Raytracing don't support tessellation
                 descriptor.passes.Add(HDShaderPasses.GenerateLitRaytracingPrepass());
 
             return descriptor;
@@ -245,34 +245,40 @@ namespace UnityEditor.Rendering.HighDefinition.ShaderGraph
             base.CollectPassKeywords(ref pass);
             pass.keywords.Add(RefractionKeyword);
 
-            foreach (var featureDefine in materialFeatureSuffixes)
+            if (pass.IsLightingOrMaterial())
             {
-                pass.keywords.Add(new KeywordDescriptor
+                foreach (var featureDefine in materialFeatureSuffixes)
                 {
-                    displayName = "Material Type",
-                    referenceName = "_MATERIAL_FEATURE",
-                    type = KeywordType.Enum,
-                    definition = KeywordDefinition.ShaderFeature,
-                    scope = KeywordScope.Local,
-                    stages = KeywordShaderStage.Fragment | (supportRaytracing ? KeywordShaderStage.RayTracing : 0),
-                    entries = new KeywordEntry[]
+                    pass.keywords.Add(new KeywordDescriptor
                     {
-                        new() { displayName = featureDefine, referenceName = featureDefine },
-                    }
-                });
+                        displayName = "Material Type",
+                        referenceName = "_MATERIAL_FEATURE",
+                        type = KeywordType.Enum,
+                        definition = KeywordDefinition.ShaderFeature,
+                        scope = KeywordScope.Local,
+                        stages = KeywordShaderStage.Fragment | (supportRaytracing ? KeywordShaderStage.RayTracing : 0),
+                        entries = new KeywordEntry[]
+                        {
+                            new() { displayName = featureDefine, referenceName = featureDefine },
+                        }
+                    });
+                }
             }
 
-            if (litData.clearCoat && litData.HasMaterialType(~HDLitData.MaterialTypeMask.ColoredTranslucent))
+            if (!pass.IsShadow())
             {
-                pass.keywords.Add(new KeywordDescriptor
+                if (litData.clearCoat && litData.HasMaterialType(~HDLitData.MaterialTypeMask.ColoredTranslucent))
                 {
-                    displayName = "Cleat Coat",
-                    referenceName = "_MATERIAL_FEATURE_CLEAR_COAT",
-                    type = KeywordType.Boolean,
-                    definition = KeywordDefinition.ShaderFeature,
-                    scope = KeywordScope.Local,
-                    stages = KeywordShaderStage.Fragment | (supportRaytracing ? KeywordShaderStage.RayTracing : 0),
-                });
+                    pass.keywords.Add(new KeywordDescriptor
+                    {
+                        displayName = "Cleat Coat",
+                        referenceName = "_MATERIAL_FEATURE_CLEAR_COAT",
+                        type = KeywordType.Boolean,
+                        definition = KeywordDefinition.ShaderFeature,
+                        scope = KeywordScope.Local,
+                        stages = KeywordShaderStage.Fragment | (supportRaytracing ? KeywordShaderStage.RayTracing : 0),
+                    });
+                }
             }
         }
 

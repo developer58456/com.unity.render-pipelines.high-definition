@@ -1,9 +1,8 @@
-using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 
 namespace UnityEngine.Rendering.HighDefinition
 {
-    public partial class HDRenderPipeline
+    partial class VolumetricCloudsSystem
     {
         struct VolumetricCloudsParameters_FullResolution
         {
@@ -56,7 +55,6 @@ namespace UnityEngine.Rendering.HighDefinition
 
         static void TraceVolumetricClouds_FullResolution(CommandBuffer cmd, VolumetricCloudsParameters_FullResolution parameters,
             GraphicsBuffer ambientProbeBuffer, RTHandle colorBuffer, RTHandle depthPyramid,
-            RTHandle intermediateCloudsLighting, RTHandle intermediateCloudsDepth,
             RTHandle cloudsLighting, RTHandle cloudsDepth)
         {
             // Compute the number of tiles to evaluate
@@ -74,10 +72,6 @@ namespace UnityEngine.Rendering.HighDefinition
             // Ray-march the clouds for this frame
             DoVolumetricCloudsTrace(cmd, finalTX, finalTY, parameters.viewCount, in parameters.commonData,
                 ambientProbeBuffer, colorBuffer, depthPyramid,
-                intermediateCloudsLighting, intermediateCloudsDepth);
-
-            DoVolumetricCloudsUpscale(cmd, parameters.combineKernel, finalTX, finalTY, parameters.viewCount, in parameters.commonData,
-                intermediateCloudsLighting, intermediateCloudsDepth, colorBuffer, depthPyramid,
                 cloudsLighting, cloudsDepth);
         }
 
@@ -90,10 +84,6 @@ namespace UnityEngine.Rendering.HighDefinition
             public TextureHandle colorBuffer;
             public TextureHandle depthPyramid;
             public BufferHandle ambientProbeBuffer;
-
-            // Intermediate buffers
-            public TextureHandle tracedCloudsLighting;
-            public TextureHandle tracedCloudsDepth;
 
             // Output buffer
             public TextureHandle cloudsLighting;
@@ -114,8 +104,7 @@ namespace UnityEngine.Rendering.HighDefinition
                 passData.colorBuffer = builder.ReadTexture(colorBuffer);
                 passData.depthPyramid = builder.ReadTexture(depthPyramid);
                 passData.ambientProbeBuffer = builder.ReadBuffer(renderGraph.ImportBuffer(m_CloudsDynamicProbeBuffer));
-                
-                CreateTracingTextures(renderGraph, builder, settings, 1.0f, out passData.tracedCloudsLighting, out passData.tracedCloudsDepth);
+
                 CreateOutputTextures(renderGraph, builder, settings, out passData.cloudsLighting, out passData.cloudsDepth);
 
                 builder.SetRenderFunc(
@@ -123,7 +112,6 @@ namespace UnityEngine.Rendering.HighDefinition
                     {
                         TraceVolumetricClouds_FullResolution(ctx.cmd, data.parameters,
                             data.ambientProbeBuffer, data.colorBuffer, data.depthPyramid,
-                            data.tracedCloudsLighting, data.tracedCloudsDepth,
                             data.cloudsLighting, data.cloudsDepth);
                     });
 

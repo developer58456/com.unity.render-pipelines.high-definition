@@ -663,6 +663,12 @@ namespace UnityEngine.Rendering.HighDefinition
                 return m_BlackAmbientProbeBuffer;
             }
 
+            // If a camera is a material preview camera, don't use the scene's ambient spherical harmonics to render it.
+            if (hdCamera.camera.cameraType == CameraType.Preview)
+            {
+                return m_BlackAmbientProbeBuffer;
+            }
+
             return GetDiffuseAmbientProbeBuffer(GetLightingSky(hdCamera));
         }
 
@@ -812,7 +818,7 @@ namespace UnityEngine.Rendering.HighDefinition
             float dimmer = 1.0f, float anisotropy = 0.7f /*Default value used by volumetric clouds and cloud layer*/)
         {
             var cubemap = renderGraph.CreateTexture(new TextureDesc(m_LowResolution, m_LowResolution)
-                { slices = TextureXR.slices, dimension = TextureDimension.Cube, colorFormat = GraphicsFormat.R16G16B16A16_SFloat, enableRandomWrite = true });
+                { dimension = TextureDimension.Cube, format = GraphicsFormat.R16G16B16A16_SFloat, enableRandomWrite = true });
 
             RenderSkyToCubemap(renderGraph, skyContext, hdCamera, cubemap, m_FacePixelCoordToViewDirMatricesLowRes, renderBackgroundClouds, profileId);
             UpdateAmbientProbe(renderGraph, cubemap, outputForClouds: true, null, null, probeBuffer, new Vector4(dimmer, anisotropy, 0.0f, 0.0f), null);
@@ -884,7 +890,7 @@ namespace UnityEngine.Rendering.HighDefinition
             // Render the volumetric clouds into the cubemap
             if (skyContext.volumetricClouds != null)
             {
-                HDRenderPipeline.currentPipeline.RenderVolumetricClouds_Sky(renderGraph, hdCamera, m_FacePixelCoordToViewDirMatrices, skyContext.volumetricClouds,
+                HDRenderPipeline.currentPipeline.volumetricClouds.RenderVolumetricClouds_Sky(renderGraph, hdCamera, m_FacePixelCoordToViewDirMatrices, skyContext.volumetricClouds,
                     skyContext.skyRenderer, (int)m_BuiltinParameters.screenSize.x, (int)m_BuiltinParameters.screenSize.y, cloudsProbeBuffer, outputCubemap);
             }
 
@@ -910,7 +916,7 @@ namespace UnityEngine.Rendering.HighDefinition
                 passData.input = builder.ReadTexture(input);
                 passData.output = output;
                 passData.intermediateTexture = builder.CreateTransientTexture(new TextureDesc(m_Resolution, m_Resolution)
-                { colorFormat = GraphicsFormat.R16G16B16A16_SFloat, dimension = TextureDimension.Cube, useMipMap = true, autoGenerateMips = false, filterMode = FilterMode.Trilinear, name = "SkyboxBSDFIntermediate" });
+                { format = GraphicsFormat.R16G16B16A16_SFloat, dimension = TextureDimension.Cube, useMipMap = true, autoGenerateMips = false, filterMode = FilterMode.Trilinear, name = "SkyboxBSDFIntermediate" });
 
                 builder.SetRenderFunc(
                 (SkyEnvironmentConvolutionPassData data, RenderGraphContext ctx) =>
@@ -1187,7 +1193,7 @@ namespace UnityEngine.Rendering.HighDefinition
                     // The static one is "permanent" until recomputed, the dynamic one is recomputed no matter what at the beginning of the frame which guarantees
                     // that it will be ready when we evaluate the clouds for the camera view.
                     HDRenderPipeline hdrp = HDRenderPipeline.currentPipeline;
-                    GraphicsBuffer volumetricCloudsProbe = hdrp.RenderVolumetricCloudsAmbientProbe(renderGraph, hdCamera, skyContext, staticSky);
+                    GraphicsBuffer volumetricCloudsProbe = hdrp.volumetricClouds.RenderVolumetricCloudsAmbientProbe(renderGraph, hdCamera, this, skyContext, staticSky);
 
                     if (forceUpdate)
                     {

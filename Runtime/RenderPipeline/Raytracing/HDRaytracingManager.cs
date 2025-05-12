@@ -766,7 +766,7 @@ namespace UnityEngine.Rendering.HighDefinition
 
                 // Depending of if we will have to denoise (or not), we need to allocate the final format, or a bigger texture
                 passData.outputTexture = builder.WriteTexture(renderGraph.CreateTexture(new TextureDesc(Vector2.one, true, true)
-                { colorFormat = GraphicsFormat.R16G16B16A16_SFloat, enableRandomWrite = true, name = "RTAS Debug" }));
+                { format = GraphicsFormat.R16G16B16A16_SFloat, enableRandomWrite = true, name = "RTAS Debug" }));
 
                 builder.SetRenderFunc(
                     (RTASDebugPassData data, RenderGraphContext ctx) =>
@@ -794,12 +794,7 @@ namespace UnityEngine.Rendering.HighDefinition
             }
         }
 
-        internal static int RayTracingFrameIndex(HDCamera hdCamera)
-        {
-            return hdCamera.ActiveRayTracingAccumulation() ? (int)hdCamera.GetCameraFrameCount() % 8 : 0;
-        }
-
-        internal int RayTracingFrameIndex(HDCamera hdCamera, int targetFrameCount = 8)
+        internal static int RayTracingFrameIndex(HDCamera hdCamera, int targetFrameCount = 8)
         {
             return hdCamera.ActiveRayTracingAccumulation() ? (int)hdCamera.GetCameraFrameCount() % targetFrameCount : 0;
         }

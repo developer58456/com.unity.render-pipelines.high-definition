@@ -4,13 +4,13 @@ The High Definition Render Pipeline (HDRP) includes the Light Placement Tool whi
 
 This tool does not affect any Cameras in your Scene. The Scene View Camera returns to its original position when you disable the Light Placement Tool. 
 
-![](Images/light-placement-tool.jpg)
+![A garden scene. On the left, the default Scene view. On the right, the view from the light.](Images/light-placement-tool.jpg)
 
 ## Use the Light Placement Tool
 
 To use the Light Placement Tool:
 1. Select a Light GameObject in the inspector window.
-2. In the Scene View Toolbar, select the Light Placement Tool icon. ![](Images/light-placement-tool-icon.png). The Scene View Camera automatically changes position to look through the selected Light.
+2. In the Scene View Toolbar, select the Light Placement Tool icon. ![Icon of a light bulb and a vector](Images/light-placement-tool-icon.png). The Scene View Camera automatically changes position to look through the selected Light.
 4. Use the Camera controls (pan, orbit, zoom) to adjust the Light’s position.
 5. Use the Light’s gizmos to adjust its properties.
 

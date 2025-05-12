@@ -8,8 +8,6 @@ HDRP reserves specific bits for features such as subsurface scattering, SSR, rec
 
 During HDRP rendering, a "Clear Stencil Buffer" pass occurs just before starting to render transparent objects, and it doesn't modify user bits. The only instance where user bits are cleared is at the start of rendering when the depth buffer is cleared.
 
-![](Images/HDRP-frame-graph-diagram.png)
-
 ## Free Stencil Bits
 
 Within the stencil buffer during rendering, bits 6 and 7 remain untouched by HDRP code. Any other bits are HDRP reserved and may be cleared or overwritten at any moment during the frame.
@@ -58,7 +56,7 @@ The table below givews you an idea of the bits used throughout the pipeline in H
 |                                    | 2                  | **SMAA** and **DistortionVectors**    | [Subpixel morphological anti-aliasing (SMAA)](Anti-Aliasing.md#SMAA) |
 |                                    | 3                  |    | Reserved for future use. |
 |                                    | 4                  | **Refractive**    | [Refraction](understand-refraction.md). |
-|                                    | 4                  | **WaterSurface**    | [Water](water.md). |
+|                                    | 5                  | **WaterSurface**    | [Water](water.md). |
 
 ## More Stencil Bits for Custom Passes
 

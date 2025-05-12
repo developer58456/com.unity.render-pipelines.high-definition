@@ -4,7 +4,7 @@ This section provides examples of common issues you might encounter when using a
 
 ## Display scaling issues
 
-![](images/Custom_Pass_Troubleshooting_01.png)
+![Custom pass troubleshooting example: Display scaling issues.](images/Custom_Pass_Troubleshooting_01.png)
 
 A scaling issue can appear in your built scene when you have two cameras that don't use the same resolution. This is most common between Game and Scene views. This can happen when:
 
@@ -36,7 +36,7 @@ To fix this:
 
 Sometimes when you enable [Temporal antialiasing (TAA)](https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@10.1/manual/Anti-Aliasing.html?q=anti#TAA), some GameObjects appear to jitter.
 
-![](images/Custom_Pass_Troubleshooting_02.gif)
+![Custom pass troubleshooting example: Jittering GameObjects.](images/Custom_Pass_Troubleshooting_02.gif)
 
 Jittering can happen when both of the following conditions are met:
 
@@ -50,7 +50,7 @@ The following conditions can cause particles in the scene to face the wrong dire
 - The particle system is only visible in a Custom Pass.
 - There is no override implemented for`AggregateCullingParameters`.
 
-Unity calculates the orientation of the particles in the Built-in Particle System when it executes `AggregateCullingParameters`  during the culling step. This means if there is no override, HRDP doesn't render it properly.
+Unity calculates the orientation of the particles in the Built-in Particle System when it executes `AggregateCullingParameters`  during the culling step. This means if there is no override, HDRP doesn't render it properly.
 
 ## Decals aren't visible
 

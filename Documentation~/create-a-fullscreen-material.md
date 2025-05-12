@@ -70,20 +70,18 @@ To set a source material for the `Blit()` command to use in shader graph:
 5. In **Node Settings**, enable the **Exposed** toggle so `Blit()`can bind the texture.
 4. Drag the **MainTex** node into your shader graph. 
 5. Press the Spacebar to open the **Create Node** window
-6. In the **Create Node** window, search for the **Texture 2D Array** node and select it to create it in your scene.
+6. In the **Create Node** window, search for the **Sample Texture 2D Array** node and select it to create it in your scene.
 7. Connect the **MainTex** node to the **Texture Array** port of the **Sample Texture 2D Array** node.
 8. Connect the **RBGA** output port of the **Sample Texture 2D Array** to the **Base Color** block in the **Fragment** context.
 9. `Blit()` automatically binds the source texture inside the `_MainTex` property.
 
 **Note**: The type of source material node depends on the platform you use. Windows and some platforms use Texture2DArray and other platforms use Texture2D. To see which texture type to use, refer to the [documentation for the platform you are using](https://docs.unity3d.com/Manual/PlatformSpecific.html).
 
-![](Images/FS_SampleTex2DArray.png)
-
 <a name="fullscreen-set-blit-script"></a>
 
 ### Set the Blit pass in a C# script
 
-Shader Graph outputs multiple passes for compatibility reasons. This means you need to manually tell the `Blit()` command to use the correct pass. You can do this in any script that uses a full-screen pass, for example a custom pass or a custom render texture script.
+Shader Graph outputs multiple passes for compatibility reasons. This means you need to manually tell the `Blit()` command to use the correct pass. You can do this in any script that uses a full-screen pass, for example a custom pass or a custom post-process script.
 
 The Blit pass is pass number `0`. Use the following line to reference this pass:
 
@@ -101,7 +99,7 @@ Your scene appears gray if you read from and write to the color buffer in the sa
 
 ## Missing part of full-screen effect 
 
-![](Images/fullscreen_troubleshooting_1.png)
+![A view of a sphere, with a red fog post-processing effect that covers only part of the display.](Images/fullscreen_troubleshooting_1.png)
 
 This error can happen when you use a full-screen shader with a custom pass C# script that uses the `Blit()` function, and you haven’t selected the **Blit** shader pass in the Inspector window or in a script. 
 

@@ -107,12 +107,16 @@ namespace UnityEngine.Rendering.HighDefinition
         VolumetricCloudMapGeneration,
         VolumetricCloudsAmbientProbe,
 
+        // Water Decals
+        WaterDecalDeformation,
+        WaterDecalFoam,
+        WaterDecalMask,
+        WaterDecalCurrent,
+
         // Water surface
         WaterSurfaceUpdate,
         WaterSurfaceSimulation,
-        WaterSurfaceDeformation,
         WaterSurfaceCaustics,
-        WaterSurfaceFoam,
         WaterExclusion,
         WaterGBuffer,
         WaterMaskDebug,
@@ -274,6 +278,8 @@ namespace UnityEngine.Rendering.HighDefinition
         DepthOfFieldGatherNear,
         DepthOfFieldPreCombine,
         DepthOfFieldCombine,
+        DepthOfFieldComputeSlowTiles,
+        DepthOfFieldApertureShape,
         LensFlareScreenSpace,
         LensFlareDataDriven,
         LensFlareComputeOcclusionDataDriven,

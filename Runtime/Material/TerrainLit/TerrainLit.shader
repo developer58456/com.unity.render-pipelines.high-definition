@@ -83,12 +83,6 @@ Shader "HDRP/TerrainLit"
     // Only has effect if the global mip bias is enabled in shader config and DRS is enabled.
     #define SUPPORT_GLOBAL_MIP_BIAS
 
-    #ifdef DEBUG_DISPLAY
-        // Mipmap debug views can inspect all 8 layers: this ensures that, even if
-        // layers 4 / 5 / 6 / 7 aren't set up, we can display something reasonable.
-        #define _TERRAIN_8_LAYERS
-    #endif
-
     #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/TerrainLit/TerrainLit_Splatmap_Includes.hlsl"
 
     ENDHLSL
@@ -139,6 +133,7 @@ Shader "HDRP/TerrainLit"
 
             #pragma multi_compile _ DEBUG_DISPLAY
             #pragma multi_compile _ LIGHTMAP_ON
+            #pragma multi_compile_fragment _ LIGHTMAP_BICUBIC_SAMPLING
             #pragma multi_compile _ DIRLIGHTMAP_COMBINED
             #pragma multi_compile _ DYNAMICLIGHTMAP_ON
             #pragma multi_compile_fragment _ SHADOWS_SHADOWMASK
@@ -294,6 +289,7 @@ Shader "HDRP/TerrainLit"
 
             #pragma multi_compile _ DEBUG_DISPLAY
             #pragma multi_compile _ LIGHTMAP_ON
+            #pragma multi_compile_fragment _ LIGHTMAP_BICUBIC_SAMPLING
             #pragma multi_compile _ DIRLIGHTMAP_COMBINED
             #pragma multi_compile _ DYNAMICLIGHTMAP_ON
             #pragma multi_compile_fragment _ SHADOWS_SHADOWMASK
@@ -375,6 +371,7 @@ Shader "HDRP/TerrainLit"
 
             #pragma multi_compile _ DEBUG_DISPLAY
             #pragma multi_compile _ LIGHTMAP_ON
+            #pragma multi_compile _ LIGHTMAP_BICUBIC_SAMPLING
             #pragma multi_compile _ DYNAMICLIGHTMAP_ON
             #pragma multi_compile _ PROBE_VOLUMES_L1 PROBE_VOLUMES_L2
             #pragma multi_compile _ DIRLIGHTMAP_COMBINED
@@ -409,6 +406,7 @@ Shader "HDRP/TerrainLit"
 
             #pragma multi_compile _ DEBUG_DISPLAY
             #pragma multi_compile _ LIGHTMAP_ON
+            #pragma multi_compile _ LIGHTMAP_BICUBIC_SAMPLING
             #pragma multi_compile _ DYNAMICLIGHTMAP_ON
             #pragma multi_compile _ PROBE_VOLUMES_L1 PROBE_VOLUMES_L2
             #pragma multi_compile _ DIRLIGHTMAP_COMBINED
@@ -444,6 +442,7 @@ Shader "HDRP/TerrainLit"
 
             #pragma multi_compile _ DEBUG_DISPLAY
             #pragma multi_compile _ LIGHTMAP_ON
+            #pragma multi_compile _ LIGHTMAP_BICUBIC_SAMPLING
             #pragma multi_compile _ DYNAMICLIGHTMAP_ON
             #pragma multi_compile _ PROBE_VOLUMES_L1 PROBE_VOLUMES_L2
             #pragma multi_compile _ DIRLIGHTMAP_COMBINED

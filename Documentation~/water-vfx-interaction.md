@@ -1,8 +1,6 @@
-# Interaction between the Water System and the VFX Graph
+# Interaction between the water system and the VFX Graph
 
-The Water System supports being evaluated from the VFX Graph, to access data such as the the water height at a given point, the surface normal, or the current value.
-
-![](Images/SampleWaterVFX.png)
+The water system supports being evaluated from the VFX Graph, to access data such as the water height at a given point, the surface normal, or the current value.
 
 However there are several simulations that are important to be aware of.
 As the water surface gameobject is saved inside a scene, and the VFX graph is an asset on disk, it is not possible to directly reference the surface from within the graph. This means data of the water surface need to be set globally by the user before the VFX can sample the water.

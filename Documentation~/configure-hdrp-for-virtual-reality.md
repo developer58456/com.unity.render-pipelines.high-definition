@@ -17,12 +17,12 @@ You can also watch the presentation from Unite Copenhagen (October 2019) to lear
 * **PC with DX11/DX12/Vulkan**:
   * Oculus Rift & Rift S (Oculus XR Plugin, Windows 10 and 11, DirectX 11, DirectX 12, Vulkan)
   * Windows Mixed Reality (Windows XR Plugin, Windows 10 and 11, DirectX 11, DirectX 12, Vulkan)
+  * OpenVR
 * **PS4** and **PS5**:
   * PlayStationVR
-  * Open VR*
 
 **Note**: Valve is currently developing their OpenVR Unity XR plugin for 2019.3 and beyond.
-For more information, see [Unity XR platform updates](https://blogs.unity3d.com/2020/01/24/unity-xr-platform-updates/) on the Unity blog, and [XR Plugin Architecture](https://docs.unity3d.com/Manual/XRPluginArchitecture.html) in the Unity Manual.
+For more information, refer to [XR Plugin Architecture](https://docs.unity3d.com/Manual/XRPluginArchitecture.html).
 The XR Plugin architecture links to the OpenVR desktop package and has further info and recommendations.
 
 ## Resolution Control

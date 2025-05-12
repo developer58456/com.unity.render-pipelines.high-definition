@@ -16,8 +16,12 @@ namespace UnityEditor.Rendering.HighDefinition
         public List<HDRenderPipelineAsset> renderPipelineAssets { get; private set; } = new List<HDRenderPipelineAsset>();
         public bool playerNeedRaytracing { get; private set; }
         public bool stripDebugVariants { get; private set; } = true;
+        public bool waterDecalMaskAndCurrent { get; private set; }
         public Dictionary<int, ComputeShader> rayTracingComputeShaderCache { get; private set; } = new();
         public Dictionary<int, ComputeShader> computeShaderCache { get; private set; } = new();
+        
+        public HDRenderPipelineRuntimeShaders runtimeShaders { get; private set; }
+        public HDRenderPipelineRuntimeMaterials materialResources { get; private set; }
 
         public HDRPBuildData()
         {
@@ -41,17 +45,25 @@ namespace UnityEditor.Rendering.HighDefinition
                     }
                 }
 
-                var hdrpGlobalSettingsInstance = HDRenderPipelineGlobalSettings.Ensure();
+                var hdrpGlobalSettingsInstance = HDRenderPipelineGlobalSettings.instance;
+                if (hdrpGlobalSettingsInstance == null)
+                    hdrpGlobalSettingsInstance = HDRenderPipelineGlobalSettings.Ensure();
                 if (hdrpGlobalSettingsInstance != null)
                 {
                     GraphicsSettings.GetRenderPipelineSettings<HDRPRayTracingResources>()
                         .ForEachFieldOfType<ComputeShader>(computeShader => rayTracingComputeShaderCache.Add(computeShader.GetInstanceID(), computeShader));
 
-                    var runtimeShaders = GraphicsSettings.GetRenderPipelineSettings<HDRenderPipelineRuntimeShaders>();
+                    runtimeShaders = GraphicsSettings.GetRenderPipelineSettings<HDRenderPipelineRuntimeShaders>();
                     runtimeShaders?.ForEachFieldOfType<ComputeShader>(computeShader => computeShaderCache.Add(computeShader.GetInstanceID(), computeShader));
+                    
+                    materialResources = GraphicsSettings.GetRenderPipelineSettings<HDRenderPipelineRuntimeMaterials>();
 
                     stripDebugVariants = !isDevelopmentBuild || GraphicsSettings.GetRenderPipelineSettings<ShaderStrippingSetting>().stripRuntimeDebugShaders;
                 }
+
+                var waterSettings = GraphicsSettings.GetRenderPipelineSettings<WaterSystemGlobalSettings>();
+                if (waterSettings != null)
+                    waterDecalMaskAndCurrent = waterSettings.waterDecalMaskAndCurrent;
             }
 
             m_Instance = this;
@@ -64,7 +76,10 @@ namespace UnityEditor.Rendering.HighDefinition
             computeShaderCache?.Clear();
             playerNeedRaytracing = false;
             stripDebugVariants = true;
+            waterDecalMaskAndCurrent = false;
             buildingPlayerForHDRenderPipeline = false;
+            runtimeShaders = null;
+            materialResources = null;
             m_Instance = null;
         }
     }

@@ -26,6 +26,7 @@ namespace UnityEngine.Rendering.HighDefinition
             (uint)FrameSettingsField.TransparentPrepass,
             (uint)FrameSettingsField.TransparentPostpass,
             (uint)FrameSettingsField.CustomPass,
+            (uint)FrameSettingsField.VariableRateShading,
             (uint)FrameSettingsField.VirtualTexturing,
             (uint)FrameSettingsField.MotionVectors, // Enable/disable whole motion vectors pass (Camera + Object).
             (uint)FrameSettingsField.ObjectMotionVectors,
@@ -82,7 +83,7 @@ namespace UnityEngine.Rendering.HighDefinition
             (uint)FrameSettingsField.VolumetricClouds,
             (uint)FrameSettingsField.Water,
 
-            (uint)FrameSettingsField.WaterDeformation,
+            (uint)FrameSettingsField.WaterDecals,
             (uint)FrameSettingsField.WaterExclusion,
             (uint)FrameSettingsField.ComputeThickness
             // (uint)FullResolutionCloudsForSky
@@ -197,7 +198,7 @@ namespace UnityEngine.Rendering.HighDefinition
             (uint)FrameSettingsField.VolumetricClouds,
             (uint)FrameSettingsField.Water,
 
-            (uint)FrameSettingsField.WaterDeformation,
+            (uint)FrameSettingsField.WaterDecals,
             (uint)FrameSettingsField.WaterExclusion,
             (uint)FrameSettingsField.AdaptiveProbeVolume,
             // (uint)FullResolutionCloudsForSky

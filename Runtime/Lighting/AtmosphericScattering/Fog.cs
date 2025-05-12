@@ -9,7 +9,7 @@ namespace UnityEngine.Rendering.HighDefinition
     /// </summary>
     [Serializable, VolumeComponentMenu("Fog")]
     [SupportedOnRenderPipeline(typeof(HDRenderPipelineAsset))]
-    [HDRPHelpURL("Override-Fog")]
+    [HDRPHelpURL("fog")]
     public class Fog : VolumeComponentWithQuality
     {
         /// <summary>Enable fog.</summary>
@@ -172,6 +172,13 @@ namespace UnityEngine.Rendering.HighDefinition
             bool d = fog.enabled.value;
 
             return a && b && c && d;
+        }
+
+        internal static bool IsVolumetricReprojectionEnabled(HDCamera hdCamera)
+        {
+            var fog = hdCamera.volumeStack.GetComponent<Fog>();
+ 
+            return (fog.denoisingMode.value & FogDenoisingMode.Reprojection) != 0;
         }
 
         internal static bool IsPBRFogEnabled(HDCamera hdCamera)

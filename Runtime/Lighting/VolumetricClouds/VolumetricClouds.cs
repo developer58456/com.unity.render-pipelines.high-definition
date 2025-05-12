@@ -8,7 +8,7 @@ namespace UnityEngine.Rendering.HighDefinition
     /// </summary>
     [Serializable, VolumeComponentMenu("Sky/Volumetric Clouds")]
     [SupportedOnRenderPipeline(typeof(HDRenderPipelineAsset))]
-    [HDRPHelpURL("Override-Volumetric-Clouds")]
+    [HDRPHelpURL("create-realistic-clouds-volumetric-clouds")]
     public sealed partial class VolumetricClouds : VolumeComponent
     {
         /// <summary>
@@ -27,8 +27,8 @@ namespace UnityEngine.Rendering.HighDefinition
         /// </summary>
         public static AnimationData animationData
         {
-            get => HDRenderPipeline.currentPipeline.m_CloudsAnimationData;
-            set { HDRenderPipeline.currentPipeline.m_CloudsAnimationData = value; }
+            get => HDRenderPipeline.currentPipeline.volumetricClouds.m_CloudsAnimationData;
+            set { HDRenderPipeline.currentPipeline.volumetricClouds.m_CloudsAnimationData = value; }
         }
 
         /// <summary>

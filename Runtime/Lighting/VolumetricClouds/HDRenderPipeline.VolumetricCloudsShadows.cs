@@ -5,7 +5,7 @@ using static Unity.Mathematics.math;
 
 namespace UnityEngine.Rendering.HighDefinition
 {
-    public partial class HDRenderPipeline
+    partial class VolumetricCloudsSystem
     {
         struct VolumetricCloudsShadowRegion
         {
@@ -30,29 +30,26 @@ namespace UnityEngine.Rendering.HighDefinition
         void InitializeVolumetricCloudsShadows()
         {
             // Grab the kernels we need
-            m_VolumetricCloudsTraceShadowsCS = runtimeShaders.volumetricCloudsTraceShadowsCS;
+            m_VolumetricCloudsTraceShadowsCS = m_RuntimeResources.volumetricCloudsTraceShadowsCS;
             m_TraceVolumetricCloudsShadowsKernel = m_VolumetricCloudsTraceShadowsCS.FindKernel("TraceVolumetricCloudsShadows");
-            m_VolumetricCloudsShadowFilterCS = runtimeShaders.volumetricCloudsShadowFilterCS;
+            m_VolumetricCloudsShadowFilterCS = m_RuntimeResources.volumetricCloudsShadowFilterCS;
             m_FilterShadowCloudsKernel = m_VolumetricCloudsShadowFilterCS.FindKernel("FilterVolumetricCloudsShadow");
 
             // Invalidate the shadow region
             m_VolumetricCloudsShadowRegion.valid = false;
         }
 
-        void ReleaseVolumetricCloudsShadows()
-        {
-        }
-
         bool HasVolumetricCloudsShadows(HDCamera hdCamera, in VolumetricClouds settings)
         {
-            return HasVolumetricClouds(hdCamera, settings) &&
-                settings.shadows.value &&
-                m_CurrentSunLight != null &&
-                m_CurrentSunLight.shadows != LightShadows.None &&
-                m_CurrentSunLightAdditionalLightData.shadowDimmer != 0.0f;
+            if (!HasVolumetricClouds(hdCamera, settings) || !settings.shadows.value)
+                return false;
+
+            var sunLight = m_RenderPipeline.GetMainLight();
+            var additionalData = m_RenderPipeline.GetMainLightAdditionalData();
+            return sunLight != null && sunLight.shadows != LightShadows.None && additionalData.shadowDimmer != 0.0f;
         }
 
-        void EvaluateShadowRegionData(HDCamera hdCamera, CommandBuffer cmd)
+        internal void EvaluateShadowRegionData(HDCamera hdCamera, CommandBuffer cmd)
         {
             // Invalidate the region in case something goes wrong
             m_VolumetricCloudsShadowRegion.valid = false;
@@ -67,7 +64,7 @@ namespace UnityEngine.Rendering.HighDefinition
             }
 
             // Grab the volume profile of the volumetric clouds
-            Light targetLight = GetMainLight();
+            Light targetLight = m_RenderPipeline.GetMainLight();
             Matrix4x4 wsToLSMat = targetLight.transform.worldToLocalMatrix;
             Matrix4x4 lsToWSMat = targetLight.transform.localToWorldMatrix;
 
@@ -75,11 +72,12 @@ namespace UnityEngine.Rendering.HighDefinition
             Bounds lightSpaceBounds = new Bounds();
             lightSpaceBounds.SetMinMax(new Vector3(float.MaxValue, float.MaxValue, float.MaxValue), new Vector3(-float.MaxValue, -float.MaxValue, -float.MaxValue));
             lightSpaceBounds.Encapsulate(wsToLSMat.MultiplyPoint(hdCamera.camera.transform.position));
+            float perspectiveCorrectedShadowDistance = settings.shadowDistance.value / cos(hdCamera.camera.fieldOfView * Mathf.Deg2Rad * 0.5f);
             for (int cornerIdx = 0; cornerIdx < 4; ++cornerIdx)
             {
                 Vector3 corner = hdCamera.frustum.corners[cornerIdx + 4];
                 float diag = corner.magnitude;
-                corner = corner / diag * Mathf.Min(settings.shadowDistance.value, diag);
+                corner = corner / diag * Mathf.Min(perspectiveCorrectedShadowDistance, diag);
                 Vector3 posLightSpace = wsToLSMat.MultiplyPoint(corner + hdCamera.camera.transform.position);
                 lightSpaceBounds.Encapsulate(posLightSpace);
             }
@@ -92,7 +90,7 @@ namespace UnityEngine.Rendering.HighDefinition
                 {
                     Vector3 corner = hdCamera.frustum.corners[cornerIdx + 4];
                     float diag = corner.magnitude;
-                    corner = corner / diag * Mathf.Min(settings.shadowDistance.value, diag);
+                    corner = corner / diag * Mathf.Min(perspectiveCorrectedShadowDistance, diag);
                     Vector3 posLightSpace = wsToLSMat.MultiplyPoint(-corner + hdCamera.camera.transform.position);
                     lightSpaceBounds.Encapsulate(posLightSpace);
                 }
@@ -111,6 +109,17 @@ namespace UnityEngine.Rendering.HighDefinition
             m_VolumetricCloudsShadowRegion.regionSize = float2(length(m_VolumetricCloudsShadowRegion.dirX), length(m_VolumetricCloudsShadowRegion.dirY));
             m_VolumetricCloudsShadowRegion.fallbackValue = 1.0f - settings.shadowOpacityFallback.value;
             m_VolumetricCloudsShadowRegion.valid = true;
+        }
+
+        internal void UpdateShaderVariablesGlobalVolumetricClouds(ref ShaderVariablesGlobal cb, HDCamera hdCamera)
+        {
+            // Volumetric Clouds Shadow Data
+            cb._VolumetricCloudsShadowScale = m_VolumetricCloudsShadowRegion.regionSize;
+            cb._VolumetricCloudsFallBackValue = m_VolumetricCloudsShadowRegion.fallbackValue;
+
+            cb._VolumetricCloudsShadowOriginToggle = new Vector4(m_VolumetricCloudsShadowRegion.origin.x, m_VolumetricCloudsShadowRegion.origin.y, m_VolumetricCloudsShadowRegion.origin.z, m_VolumetricCloudsShadowRegion.valid ? 1 : 0);
+            if (ShaderConfig.s_CameraRelativeRendering != 0)
+                cb._VolumetricCloudsShadowOriginToggle -= new Vector4(hdCamera.camera.transform.position.x, hdCamera.camera.transform.position.y, hdCamera.camera.transform.position.z, 0);
         }
 
         void UpdateShaderVariablesCloudsShadow(ref ShaderVariablesCloudsShadows cb, HDCamera hdCamera, VolumetricClouds settings, VolumetricCloudsShadowRegion shadowRegion)
@@ -230,7 +239,7 @@ namespace UnityEngine.Rendering.HighDefinition
             // Evaluate and bind the shadow
             int shadowResolution = (int)settings.shadowResolution.value;
             TextureHandle shadowTexture = renderGraph.CreateTexture(new TextureDesc(shadowResolution, shadowResolution, false, false)
-            { colorFormat = GraphicsFormat.R16G16B16A16_SFloat, enableRandomWrite = true, name = "Volumetric Clouds Shadow Texture" });
+            { format = GraphicsFormat.R16G16B16A16_SFloat, enableRandomWrite = true, name = "Volumetric Clouds Shadow Texture" });
 
             using (var builder = renderGraph.AddRenderPass<VolumetricCloudsShadowsData>("Volumetric Clouds Shadows", out var passData, ProfilingSampler.Get(HDProfileId.VolumetricCloudsShadow)))
             {
@@ -242,7 +251,7 @@ namespace UnityEngine.Rendering.HighDefinition
 
                 // Manage the resources
                 passData.intermediateShadowTexture = builder.CreateTransientTexture(new TextureDesc(shadowResolution, shadowResolution, false, false)
-                { colorFormat = GraphicsFormat.R16G16B16A16_SFloat, enableRandomWrite = true, name = "Volumetric Clouds Shadow Temp Texture" });
+                { format = GraphicsFormat.R16G16B16A16_SFloat, enableRandomWrite = true, name = "Volumetric Clouds Shadow Temp Texture" });
                 passData.shadowTexture = builder.ReadWriteTexture(shadowTexture);
 
                 // Evaluate the shadow
@@ -256,7 +265,7 @@ namespace UnityEngine.Rendering.HighDefinition
             }
 
             // Given that the rendering of the shadow happens before the render graph execution, we can only have the display debug here (and not during the light data build).
-            PushFullScreenDebugTexture(m_RenderGraph, shadowTexture, FullScreenDebugMode.VolumetricCloudsShadow, xrTexture: false);
+            m_RenderPipeline.PushFullScreenDebugTexture(renderGraph, shadowTexture, FullScreenDebugMode.VolumetricCloudsShadow, xrTexture: false);
         }
     }
 }

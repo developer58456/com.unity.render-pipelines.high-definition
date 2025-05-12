@@ -31,7 +31,7 @@ Refer to [Create realistic clouds (volumetric clouds)](create-realistic-clouds-v
 | - **Cloud Map Resolution**        | Specifies the resolution for the internal Texture HDRP uses for the cloud map. A lower resolution produces better performance, but less precise cloud type transitions. <br/><br/>This property only appears if you set **Cloud Control** to **Advanced**. |
 | - **Cloud Map**                   | Specifies the cloud map to use for the volumetric clouds. For information on the format of this Texture, see [Cloud map and cloud lookup table](#cloud-map-and-cloud-lookup-table). <br/><br/>This property only appears if you set **Cloud Control** to **Custom**. |
 | - **Cloud LUT**                   | Specifies the lookup table for the clouds. For information on the format of this Texture, see [Cloud map and cloud lookup table](#cloud-map-and-cloud-lookup-table).  <br/><br/>This property only appears if you set **Cloud Control** to **Custom**. |
-| - **Cloud Map Tiling**            | The **X** and **Y** UV tile rate for one or more cloud map Textures. HDRP uses the **X** and **Y** values to tile the clouds across the sky.<br/>If **Cloud Control** is set to **Advanced**, this affects **Cumulus Map**, **Alto Stratus Map**, **Cumulonimbus Map**, and **Rain Map**.<br/>If **Cloud Control** is set to **Custom**, this affects the Texture assigned to the **Cloud Map** property.<br/><br/>This property only appears if you set **Cloud Control** to **Advanced** or **Custom**. |
+| - **Cloud Map Tiling**            | The **X** and **Y** UV tile rate for one or more cloud map Textures. HDRP uses the **X** and **Y** values to tile the clouds across the sky. When modifying those properties, cloud position is only maintained at the origin of the world (0,0,0). <br/>If **Cloud Control** is set to **Advanced**, this affects **Cumulus Map**, **Alto Stratus Map**, **Cumulonimbus Map**, and **Rain Map**.<br/>If **Cloud Control** is set to **Custom**, this affects the Texture assigned to the **Cloud Map** property.<br/><br/>This property only appears if you set **Cloud Control** to **Advanced** or **Custom**. |
 | - **Cloud Map Offset**            | The **X** and **Y** UV offset for one or more cloud map Textures. HDRP uses the **X** and **Y** values to offset the clouds across the sky.<br/>If **Cloud Control** is set to **Advanced**, this affects **Cumulus Map**, **Alto Stratus Map**, **Cumulonimbus Map**, and **Rain Map**.<br/>If **Cloud Control** is set to **Custom**, this affects the Texture assigned to the **Cloud Map** property.<br/><br/>This property only appears if you set **Cloud Control** to **Advanced** or **Custom**, or if you set it to **Simple** and then set **Cloud Preset** to **Custom**. |
 | - **Density Multiplier**          | The global density of the volumetric clouds. <br/><br/>This property only appears if you set **Cloud Control** to **Advanced** or **Custom**, or if you set it to **Simple** and then set **Cloud Preset** to **Custom**. |
 | - **Shape Factor**                | Controls the amount of shaping to apply to the cloud volume. A higher value produces less cloud coverage and smaller clouds. <br/><br/>This property only appears if you set **Cloud Control** to **Advanced** or **Custom**, or if you set it to **Simple** and then set **Cloud Preset** to **Custom**. |
@@ -65,6 +65,7 @@ Refer to [Create realistic clouds (volumetric clouds)](create-realistic-clouds-v
 | -------------------------------- | ------------------------------------------------------------ |
 | **Temporal Accumulation Factor** | The amount of temporal accumulation to apply to the clouds. Temporal accumulation increases the visual quality of clouds by decreasing the noise. A higher value produces better quality clouds, but can create [ghosting](Glossary.md#ghosting). |
 | **Ghosting Reduction**           | When you enable this property, HDRP removes the ghosting caused by temporal accumulation. This effect might cause a flickering effect when the **Temporal Accumulation Factor** value is low. |
+| **Perceptual Blending**          | Blend the clouds with the environment. This might cause artifacts if the sky is overexposed. This setting only has an effect when you disable multi-sample antialiasing (MSAA). |
 | **Num Primary Steps**            | The number of steps to use to evaluate the clouds' transmittance. Higher values linearly increase the resource intensity of the effect. |
 | **Num Light Steps**              | The number of steps to use to evaluate the clouds' lighting. Higher values exponent increase the resource intensity of the effect. |
 
@@ -112,6 +113,15 @@ For the **Cloud LUT**, the color channels represent:
 
 When importing these two map Textures, disable **sRGB**. For best results, do not use any compression.
 
+![A small rectangular texture with a bright cyan background. On the left are two small white clouds at different heights. On the right is a curving gradient from red to green.](Images/CloudLUT_Advanced.png)<br/>
+As a reference, here is the procedurally generated cloud LUT used for advanced mode. You can clearly see the 3 types of clouds (mid-altitude on the left, high altitude in the middle and cumulonimbus on the right).
+Also, there is variations in the green and blue channels to specify more of less erosion and ambient occlusion depending on the cloud profile. 
+
+![A rectangular texture with 8 bands of 32 pixels each. The first 3 bands are thin clouds at different heights. The next band is a tall fluffy cloud. The next 3 bands are clouds that get spottier at different heights. The final band is a curving vertical cloud. The edge at 96 pixels maps to the top-left of the sky, and the edge at 128 pixels maps to the center of the sky. The final image is a tower of layered cloud, with smaller clouds scattered nearby.)](Images/Volumetric-Clouds-manual-lut.png)
+
+Here is an example cloud LUT that can be used in manual mode. On the top image, the LUT is divided into 8 32px wide parts, each representing a cloud type with a specific profile and altitude. (stratus on the left and cumulus on the right)
+On the bottom left, the cloud map uses grayscale values to map which type of clouds is used. For exemple a radial gradient using thoses values creates a circular cloud as seen on the bottom right using the profile set on the cloud LUT.  
+For more examples, you can get the [environment samples](HDRP-Sample-Content.html#environment-samples) from the package manager.   
+
 **Note**: This cloud map is formatted differently to the cloud map that the [Cloud Layer](create-simple-clouds-cloud-layer.md) feature uses.
 
-![](Images/volumetric-clouds-3.png)

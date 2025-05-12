@@ -849,11 +849,11 @@ namespace UnityEditor.Rendering.HighDefinition
 #else
                 serialized.settings.DrawRange(false);
 #endif
-                // Make sure the range is not 0.0
-                serialized.settings.range.floatValue = Mathf.Max(0.001f, serialized.settings.range.floatValue);
-
                 if (EditorGUI.EndChangeCheck())
                 {
+                    // Make sure the range is not 0.0
+                    serialized.settings.range.floatValue = Mathf.Max(0.001f, serialized.settings.range.floatValue);
+                    
                     // For GI we need to detect any change on additional data and call SetLightDirty + For intensity we need to detect light shape change
                     serialized.needUpdateAreaLightEmissiveMeshComponents = true;
                     SetLightsDirty(owner); // Should be apply only to parameter that's affect GI, but make the code cleaner
@@ -985,8 +985,6 @@ namespace UnityEditor.Rendering.HighDefinition
                 }
             }
 
-            if (useBaking && !UnityEditor.EditorSettings.enableCookiesInLightmapper)
-                EditorGUILayout.HelpBox(s_Styles.cookieBaking, MessageType.Warning);
             if (cookie.width != cookie.height)
                 EditorGUILayout.HelpBox(s_Styles.cookieNonPOT, MessageType.Warning);
             if (cookie.width < LightCookieManager.k_MinCookieSize || cookie.height < LightCookieManager.k_MinCookieSize)

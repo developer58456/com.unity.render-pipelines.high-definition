@@ -103,6 +103,7 @@ namespace UnityEngine.Rendering.HighDefinition
                 supportShadowMask = true,
                 supportSSAO = true,
                 supportSubsurfaceScattering = true,
+                subsurfaceScatteringAttenuation = true,
                 sssSampleBudget = new IntScalableSetting(new[] { (int)DefaultSssSampleBudgetForQualityLevel.Low,
                                                                  (int)DefaultSssSampleBudgetForQualityLevel.Medium,
                                                                  (int)DefaultSssSampleBudgetForQualityLevel.High }, ScalableSettingSchemaId.With3Levels),
@@ -116,6 +117,7 @@ namespace UnityEngine.Rendering.HighDefinition
                 supportTransparentDepthPostpass = true,
                 colorBufferFormat = ColorBufferFormat.R11G11B10,
                 supportCustomPass = true,
+                supportVariableRateShading = true,
                 customBufferFormat = CustomBufferFormat.R8G8B8A8,
                 supportedLitShaderMode = SupportedLitShaderMode.DeferredOnly,
                 supportDecals = true,
@@ -151,12 +153,13 @@ namespace UnityEngine.Rendering.HighDefinition
                 // Water Properties
                 supportWater = false,
                 waterSimulationResolution = WaterSimulationResolution.Medium128,
-                supportWaterDeformation = true,
-                deformationAtlasSize = WaterAtlasSize.AtlasSize512,
-                maximumDeformerCount = 64,
-                supportWaterFoam = true,
-                foamAtlasSize = WaterAtlasSize.AtlasSize512,
                 supportWaterExclusion = true,
+                supportWaterHorizontalDeformation = false,
+
+                supportWaterDecals = true,
+                waterDecalAtlasSize = WaterAtlasSize.AtlasSize1024,
+                maximumWaterDecalCount = 48,
+
                 waterScriptInteractionsMode = WaterScriptInteractionsMode.GPUReadback,
                 waterFullCPUSimulation = false,
 
@@ -248,6 +251,8 @@ namespace UnityEngine.Rendering.HighDefinition
         // [ShaderKeywordFilter.RemoveIf(true, keywordNames: "OUTPUT_SPLIT_LIGHTING")]
 #endif
         public bool supportSubsurfaceScattering;
+        /// <summary>Enable SubSurface-Scattering occlusion computation. Enabling this makes the SSS slightly more expensive but add great details to occluded zones with SSS materials.</summary>
+        public bool subsurfaceScatteringAttenuation;
         /// <summary>Sample budget for the Subsurface Scattering algorithm.</summary>
         public IntScalableSetting sssSampleBudget;
         /// <summary>Downsample input texture for the Subsurface Scattering algorithm.</summary>
@@ -268,16 +273,16 @@ namespace UnityEngine.Rendering.HighDefinition
         public WaterSimulationResolution waterSimulationResolution;
         /// <summary>Support Water Surfaces exclusion.</summary>
         public bool supportWaterExclusion;
+        /// <summary>Support Water Surfaces Horizontal Deformation.</summary>
+        public bool supportWaterHorizontalDeformation;
+
         /// <summary>Support Water Surfaces deformation.</summary>
-        public bool supportWaterDeformation;
-        /// <summary>Defines the resolution of the deformer atlas.</summary>
-        public WaterAtlasSize deformationAtlasSize;
-        /// <summary>Maximum amount of water deformers supported.</summary>
-        public int maximumDeformerCount;
-        /// <summary>Support Water Surfaces foam.</summary>
-        public bool supportWaterFoam;
-        /// <summary>Defines the resolution of the foam system atlas.</summary>
-        public WaterAtlasSize foamAtlasSize;
+        public bool supportWaterDecals;
+        /// <summary>Defines the resolution of the decal atlas.</summary>
+        public WaterAtlasSize waterDecalAtlasSize;
+        /// <summary>Maximum amount of visible water decals.</summary>
+        public int maximumWaterDecalCount;
+
         /// <summary>Defines if the script interactions should simulate water on CPU or fetch simulation from the GPU.</summary>
         [Tooltip("Defines if the script interactions should simulate water on CPU or fetch simulation from the GPU.")]
         public WaterScriptInteractionsMode waterScriptInteractionsMode;
@@ -312,6 +317,8 @@ namespace UnityEngine.Rendering.HighDefinition
         public ColorBufferFormat colorBufferFormat;
         /// <summary>Support custom passes.</summary>
         public bool supportCustomPass;
+        /// <summary>Support variable rate shading.</summary>
+        public bool supportVariableRateShading;
         /// <summary>Custom passes buffer format.</summary>
         public CustomBufferFormat customBufferFormat;
         /// <summary>Supported Lit shader modes.</summary>

@@ -2314,7 +2314,8 @@ namespace UnityEngine.Rendering.HighDefinition
         void OnDisable()
         {
             // If it is within the cached system we need to evict it, unless user explicitly requires not to.
-            if (!preserveCachedShadow && hasShadowCache)
+            // If the shadow was pending placement in the atlas, we also evict it, even if the user wants to preserve it.
+            if ((!preserveCachedShadow || HDShadowManager.cachedShadowManager.LightIsPendingPlacement(lightIdxForCachedShadows, shadowMapType)) && hasShadowCache)
             {
                 HDShadowManager.cachedShadowManager.EvictLight(this, legacyLight.type);
             }
@@ -2630,7 +2631,7 @@ namespace UnityEngine.Rendering.HighDefinition
         internal Color EvaluateLightColor()
         {
             Color finalColor = legacyLight.color.linear * legacyLight.intensity;
-            
+
             if (legacyLight.useColorTemperature)
                 finalColor *= Mathf.CorrelatedColorTemperatureToRGB(legacyLight.colorTemperature);
 
@@ -2688,11 +2689,20 @@ namespace UnityEngine.Rendering.HighDefinition
 
                     var directionalLights = HDLightRenderDatabase.instance.directionalLights;
                     if (lightData.cachedLightType == LightType.Directional)
+                    {
                         directionalLights.Add(lightData);
+                    }
                     else if (lightData.legacyLight.type != LightType.Directional)
                     {
-                        int idx = directionalLights.FindIndex((x) => ReferenceEquals(x, lightData));
-                        if (idx != -1) directionalLights.RemoveAt(idx);
+                        // Remove the light from directionalLights, We use a loop to avoid a GC allocation (UUM-69806)
+                        for (int k = 0; k < directionalLights.Count; ++k)
+                        {
+                            if (ReferenceEquals(directionalLights[k], lightData))
+                            {
+                                directionalLights.RemoveAt(k);
+                                break;
+                            }
+                        }
                     }
 
 #if UNITY_EDITOR
@@ -3223,7 +3233,15 @@ namespace UnityEngine.Rendering.HighDefinition
             float halfWidth = m_ShapeWidth * 0.5f;
             float halfHeight = m_ShapeHeight * 0.5f;
             float diag = Mathf.Sqrt(halfWidth * halfWidth + halfHeight * halfHeight);
-            legacyLight.boundingSphereOverride = new Vector4(0.0f, 0.0f, 0.0f, Mathf.Max(range, diag));
+            legacyLight.boundingSphereOverride = new Vector4(0.0f, 0.0f, 0.0f, range + diag);
+        }
+
+        void UpdateDiscLightBounds()
+        {
+            legacyLight.useShadowMatrixOverride = false;
+            // TODO: Don't use bounding sphere overrides. Support this properly in Unity native instead.
+            legacyLight.useBoundingSphereOverride = true;
+            legacyLight.boundingSphereOverride = new Vector4(0.0f, 0.0f, 0.0f, range + m_ShapeWidth);
         }
 
         void UpdateTubeLightBounds()
@@ -3231,7 +3249,7 @@ namespace UnityEngine.Rendering.HighDefinition
             legacyLight.useShadowMatrixOverride = false;
             // TODO: Don't use bounding sphere overrides. Support this properly in Unity native instead.
             legacyLight.useBoundingSphereOverride = true;
-            legacyLight.boundingSphereOverride = new Vector4(0.0f, 0.0f, 0.0f, Mathf.Max(range, m_ShapeWidth * 0.5f));
+            legacyLight.boundingSphereOverride = new Vector4(0.0f, 0.0f, 0.0f, range + m_ShapeWidth * 0.5f);
         }
 
         void UpdateBoxLightBounds()
@@ -3277,6 +3295,9 @@ namespace UnityEngine.Rendering.HighDefinition
                     break;
                 case LightType.Rectangle:
                     UpdateRectangleLightBounds();
+                    break;
+                case LightType.Disc:
+                    UpdateDiscLightBounds();
                     break;
                 case LightType.Tube:
                     UpdateTubeLightBounds();

@@ -274,7 +274,7 @@ float3 LoadCameraColor(uint2 pixelCoords, uint lod)
 
 float3 SampleCameraColor(float2 uv, float lod)
 {
-    return SAMPLE_TEXTURE2D_X_LOD(_ColorPyramidTexture, s_trilinear_clamp_sampler, uv * _RTHandleScaleHistory.xy, lod).rgb;
+    return SAMPLE_TEXTURE2D_X_LOD(_ColorPyramidTexture, s_trilinear_clamp_sampler, uv * _ColorPyramidUvScaleAndLimitCurrentFrame.xy, lod).rgb;
 }
 
 float3 LoadCameraColor(uint2 pixelCoords)
@@ -536,6 +536,10 @@ float4x4 GetRawUnityPrevWorldToObject() { return unity_MatrixPreviousMI; }
 #define UNITY_MATRIX_I_M       ApplyCameraTranslationToInverseMatrix(GetRawUnityWorldToObject())
 #define UNITY_PREV_MATRIX_M    ApplyCameraTranslationToMatrix(GetRawUnityPrevObjectToWorld())
 #define UNITY_PREV_MATRIX_I_M  ApplyCameraTranslationToInverseMatrix(GetRawUnityPrevWorldToObject())
+#define UNITY_MATRIX_MV        mul(UNITY_MATRIX_V, UNITY_MATRIX_M)
+#define UNITY_MATRIX_T_MV      transpose(UNITY_MATRIX_MV)
+#define UNITY_MATRIX_IT_MV     transpose(mul(UNITY_MATRIX_I_M, UNITY_MATRIX_I_V))
+#define UNITY_MATRIX_MVP       mul(UNITY_MATRIX_VP, UNITY_MATRIX_M)
 
 #endif
 

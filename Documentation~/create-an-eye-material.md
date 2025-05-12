@@ -44,7 +44,7 @@ You can also create your own custom Textures for the Eye Shader Graph. For more 
 
 HDRP includes four sample eyes of different sizes in the Eye sample scene. This scene exists in HDRP’s Material Samples. To install the Material Samples:
 
-1. Open the Package Manager window (**Window** > **Package Manager**).
+1. Open the Package Manager window (**Window** > **Package Management** > **Package Manager**).
 2. Open the **Packages** menu and select the **In Project** context.
 3. Select the **High Definition RP** package.
 4. Expand the **Samples** dropdown.
@@ -84,5 +84,5 @@ Inspector window with the **Sclera Diffusion Profile** fix option highlighted.
 
 You must provide seperate Texture maps for the Iris and Sclera. This is because of the way that properties for subsurface scattering, limbal ring, smoothness, and other surface information blends between the Iris and Sclera. This means you need to create a Sclera map with no Iris information, and an Iris map with no Sclera information:
 
-![](Images/eye-shader-sclera-map.png)![](Images/eye-shader-iris-map.png)
+![An eye shader sclera map.](Images/eye-shader-sclera-map.png)![An eye shader iris map.](Images/eye-shader-iris-map.png)
 

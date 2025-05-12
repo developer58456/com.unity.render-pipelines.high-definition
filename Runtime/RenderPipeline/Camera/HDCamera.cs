@@ -206,6 +206,10 @@ namespace UnityEngine.Rendering.HighDefinition
             return hdCamera;
         }
 
+        //access for editor helpbox checks
+        internal static bool TryGet(Camera camera, out HDCamera hdCamera, int xrMultipassId = 0, HistoryChannel historyChannel = HistoryChannel.RenderLoopHistory)
+            => s_Cameras.TryGetValue((camera, xrMultipassId, historyChannel), out hdCamera);
+
         // internal only for now, to be publicly available when history API is implemented in SRP Core
         /// <summary>
         /// Check if a given history channel is already existing for a pair of camera and XR multi-pass Id.
@@ -1057,13 +1061,26 @@ namespace UnityEngine.Rendering.HighDefinition
             {
                 return HDRenderPipeline.currentAsset.currentPlatformRenderPipelineSettings.dynamicResolutionSettings.FSR2InjectionPoint;
             }
+            else if (IsSTPEnabled())
+            {
+                return HDRenderPipeline.currentAsset.currentPlatformRenderPipelineSettings.dynamicResolutionSettings.STPInjectionPoint;
+            }
             else if (IsTAAUEnabled())
             {
-                return DynamicResolutionHandler.UpsamplerScheduleType.BeforePost;
+                return HDRenderPipeline.currentAsset.currentPlatformRenderPipelineSettings.dynamicResolutionSettings.TAAUInjectionPoint;
+            }
+            else if (DynResRequest.filter == DynamicResUpscaleFilter.CatmullRom)
+            {
+                return DynamicResolutionHandler.UpsamplerScheduleType.AfterPost;
+            }
+            else if (DynResRequest.filter == DynamicResUpscaleFilter.EdgeAdaptiveScalingUpres)
+            {
+                // FSR 1.0 specifically asks for an input image in perceptual space, so we can only inject it after post processes.
+                return DynamicResolutionHandler.UpsamplerScheduleType.AfterPost;
             }
             else
             {
-                return DynamicResolutionHandler.UpsamplerScheduleType.AfterPost;
+                return HDRenderPipeline.currentAsset.currentPlatformRenderPipelineSettings.dynamicResolutionSettings.defaultInjectionPoint;
             }
         }
 
@@ -1111,8 +1128,9 @@ namespace UnityEngine.Rendering.HighDefinition
             // We only enable volumetric re projection if we are processing the game view or a scene view with animated materials on
             bool b = camera.cameraType == CameraType.Game || (camera.cameraType == CameraType.SceneView && CoreUtils.AreAnimatedMaterialsEnabled(camera));
             bool c = frameSettings.IsEnabled(FrameSettingsField.ReprojectionForVolumetrics);
+            bool d = Fog.IsVolumetricReprojectionEnabled(this);
 
-            return a && b && c;
+            return a && b && c && d;
         }
 
         internal void RequestClearHistoryBuffers()
@@ -1453,12 +1471,12 @@ namespace UnityEngine.Rendering.HighDefinition
             {
                 for (int viewIndex = 0; viewIndex < viewCount; ++viewIndex)
                 {
-                    transforms[viewIndex] = ComputePixelCoordToWorldSpaceViewDirectionMatrix(m_XRViewConstants[viewIndex], resolution, aspect);
+                    transforms[viewIndex] = ComputePixelCoordToWorldSpaceViewDirectionMatrix(m_XRViewConstants[viewIndex], resolution, aspect, ShaderConfig.s_CameraRelativeRendering);
                 }
             }
             else
             {
-                transforms[0] = ComputePixelCoordToWorldSpaceViewDirectionMatrix(mainViewConstants, resolution, aspect);
+                transforms[0] = ComputePixelCoordToWorldSpaceViewDirectionMatrix(mainViewConstants, resolution, aspect, ShaderConfig.s_CameraRelativeRendering);
             }
         }
 
@@ -1537,7 +1555,7 @@ namespace UnityEngine.Rendering.HighDefinition
         {
             if (!ShaderConfig.s_GlobalMipBias)
                 return;
-            
+
             cb._GlobalMipBias = mipBias;
             cb._GlobalMipBiasPow2 = (float)Math.Pow(2.0f, mipBias);
         }
@@ -1749,7 +1767,7 @@ namespace UnityEngine.Rendering.HighDefinition
                 // We need to blit to an intermediate texture because input resolution can be bigger than the camera resolution
                 // Since recorder does not know about this, we need to send a texture of the right size.
                 passData.tempTexture = builder.CreateTransientTexture(new TextureDesc((int)finalViewport.width, (int)finalViewport.height)
-                { colorFormat = inputDesc.colorFormat, name = "TempCaptureActions" });
+                { format = inputDesc.format, name = "TempCaptureActions" });
 
                 builder.SetRenderFunc(
                     (ExecuteCaptureActionsPassData data, RenderGraphContext ctx) =>
@@ -1842,6 +1860,10 @@ namespace UnityEngine.Rendering.HighDefinition
                 return rtHandleSystem.Alloc(Vector2.one * scaleFactor, TextureXR.slices, filterMode: FilterMode.Point, colorFormat: format, dimension: TextureXR.dimension, useDynamicScale: true, enableRandomWrite: true, name: string.Format("{0}_{1}_{2}", id, name, frameIndex));
             }
         }
+
+        internal bool vrsEnabled => frameSettings.IsEnabled(FrameSettingsField.VariableRateShading) &&
+                                    camera.cameraType == CameraType.Game &&
+                                    !xr.enabled;
         #endregion
 
 
@@ -2080,7 +2102,7 @@ namespace UnityEngine.Rendering.HighDefinition
             viewConstants.viewProjectionNoCameraTrans = gpuVPNoTrans;
 
             var gpuProjAspect = HDUtils.ProjectionMatrixAspect(gpuProj);
-            viewConstants.pixelCoordToViewDirWS = ComputePixelCoordToWorldSpaceViewDirectionMatrix(viewConstants, screenSize, gpuProjAspect);
+            viewConstants.pixelCoordToViewDirWS = ComputePixelCoordToWorldSpaceViewDirectionMatrix(viewConstants, screenSize, gpuProjAspect, ShaderConfig.s_CameraRelativeRendering);
 
             if (updatePreviousFrameConstants)
             {
@@ -2336,8 +2358,9 @@ namespace UnityEngine.Rendering.HighDefinition
         ///
         /// It is different from the aspect ratio of <paramref name="resolution"/> for anamorphic projections.
         /// </param>
+        /// <param name="cameraRelativeRendering">If non-zero, then assume Camera Relative Rendering is enabled.</param>
         /// <returns></returns>
-        Matrix4x4 ComputePixelCoordToWorldSpaceViewDirectionMatrix(ViewConstants viewConstants, Vector4 resolution, float aspect = -1)
+        internal Matrix4x4 ComputePixelCoordToWorldSpaceViewDirectionMatrix(ViewConstants viewConstants, Vector4 resolution, float aspect = -1, int cameraRelativeRendering = 1)
         {
             // In XR mode, or if explicitely required, use a more generic matrix to account for asymmetry in the projection
             var useGenericMatrix = xr.enabled || frameSettings.IsEnabled(FrameSettingsField.AsymmetricProjection);
@@ -2356,7 +2379,20 @@ namespace UnityEngine.Rendering.HighDefinition
                     new Vector4(0.0f, 0.0f, 1.0f, 0.0f),
                     new Vector4(0.0f, 0.0f, 0.0f, 1.0f));
 
-                var transformT = viewConstants.invViewProjMatrix.transpose * Matrix4x4.Scale(new Vector3(-1.0f, -1.0f, -1.0f));
+                Matrix4x4 transformT;
+                if (cameraRelativeRendering == 0)
+                {
+                    // In case we are not camera relative, the view matrix used to calculate viewConstants.invViewProjMatrix
+                    // contains translation component, so we need to remove it.
+                    var viewNoTrans = viewConstants.viewMatrix;
+                    viewNoTrans.SetColumn(3, new Vector4(0, 0, 0, 1));
+                    var invViewProj = (viewConstants.projMatrix * viewNoTrans).inverse;
+                    transformT = invViewProj.transpose * Matrix4x4.Scale(new Vector3(-1.0f, -1.0f, -1.0f));
+                }
+                else
+                {
+                    transformT = viewConstants.invViewProjMatrix.transpose * Matrix4x4.Scale(new Vector3(-1.0f, -1.0f, -1.0f));
+                }
                 return viewSpaceRasterTransform * transformT;
             }
 

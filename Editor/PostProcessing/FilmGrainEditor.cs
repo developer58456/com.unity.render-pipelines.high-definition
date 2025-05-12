@@ -24,6 +24,8 @@ namespace UnityEditor.Rendering.HighDefinition
 
         public override void OnInspectorGUI()
         {
+            HDEditorUtils.EnsureFrameSetting(FrameSettingsField.FilmGrain);
+
             PropertyField(m_Type);
 
             if (m_Type.value.intValue == (int)FilmGrainLookup.Custom)
