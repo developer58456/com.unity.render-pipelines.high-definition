@@ -5,7 +5,7 @@ namespace UnityEngine.Rendering.HighDefinition
 {
     [Serializable]
     [SupportedOnRenderPipeline(typeof(HDRenderPipelineAsset))]
-    [Categorization.CategoryInfo(Name = "R: Runtime Shaders", Order = 1000), HideInInspector]
+    [Categorization.CategoryInfo(Name = "R: Runtime Shaders", Order = 1000)]
     class HDRenderPipelineRuntimeShaders : IRenderPipelineResources
     {
         public int version => 0;
